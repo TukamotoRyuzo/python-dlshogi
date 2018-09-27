@@ -244,5 +244,4 @@ __pycache__/
 *.egg-info/
 .cache/
 /log*
-*.md
 .ipynb_checkpoints/*
