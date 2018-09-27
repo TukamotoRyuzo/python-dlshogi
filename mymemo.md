@@ -30,7 +30,7 @@
 ``` shell
 !apt-get install -y -qq libcusparse8.0 libnvrtc8.0 libnvtoolsext1
 !ln -snf /usr/lib/x86_64-linux-gnu/libnvrtc-builtins.so.8.0 /usr/lib/x86_64-linux-gnu/libnvrtc-builtins.so
-!pip install cupy-cuda80==4.0.0b4 
+!pip install cupy-cuda80==4.0.0b4
 !pip install chainer==4.0.0b4
 ```
 
@@ -78,6 +78,7 @@ drive.mount('/content/gdrive')
     - `!python train_policy.py kifulist_train_1000.txt kifulist_test_100.txt --eval_interval 100`
   - 普通に実行
     - `!python train_policy.py kifulist_train.txt kifulist_test.txt --eval_interval 10000`
+
 ## ディレクトリ構成
 
 - bat
