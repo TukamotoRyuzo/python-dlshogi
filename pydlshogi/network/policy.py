@@ -22,7 +22,7 @@ class PolicyNetwork():
         self.model.add(Conv2D(filters = ch, kernel_size = (3, 3), activation = 'relu', padding = 'same'))
         self.model.add(Conv2D(filters = ch, kernel_size = (3, 3), activation = 'relu', padding = 'same'))
         self.model.add(Conv2D(filters = MOVE_DIRECTION_LABEL_NUM, kernel_size = (1, 1), activation = 'softmax', padding = 'same', use_bias = True))
-        self.model.compile(loss = keras.losses.categorical_crossentropy, optimizer = keras.optimizers.Adadelta(),metrics = ['accuracy'])
+        self.model.compile(loss = keras.losses.categorical_crossentropy, optimizer = keras.optimizers.SGD(), metrics = ['accuracy'])
 
     def __call__(self, x):
         return self.model.predict(x)
