@@ -1,8 +1,4 @@
 ﻿import numpy as np
-import chainer
-from chainer import cuda, Variable
-from chainer import optimizers, serializers
-import chainer.functions as F
 
 from pydlshogi.common import *
 from pydlshogi.network.policy import PolicyNetwork
