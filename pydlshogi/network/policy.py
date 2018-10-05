@@ -9,7 +9,7 @@ ch = 192
 class PolicyNetwork(Sequential):
     def __init__(self):
         super().__init__()
-        self.add(Conv2D(filters = ch, kernel_size = (3, 3), activation = 'relu', padding = 'same', input_shape = (9, 9, 104)))
+        self.add(Conv2D(filters = ch, kernel_size = (3, 3), activation = 'relu', padding = 'same', data_format = "channels_first", input_shape = (104, 9, 9)))
         self.add(Conv2D(filters = ch, kernel_size = (3, 3), activation = 'relu', padding = 'same'))
         self.add(Conv2D(filters = ch, kernel_size = (3, 3), activation = 'relu', padding = 'same'))
         self.add(Conv2D(filters = ch, kernel_size = (3, 3), activation = 'relu', padding = 'same'))
