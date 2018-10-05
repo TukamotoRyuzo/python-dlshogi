@@ -109,7 +109,7 @@ for e in range(args.epoch):
     sum_loss_epoch = 0
     for i in range(0, len(positions_train_shuffled) - args.batchsize, args.batchsize):
         x, t = mini_batch(positions_train_shuffled, i, args.batchsize)
-        hist = p_net.fit(x, t, batch_size=args.batchsize epochs=1, verbose=0)
+        hist = p_net.fit(x, t, batch_size=args.batchsize, epochs=1, verbose=0)
 
         itr += 1
         sum_loss += hist.history['loss'][0]
