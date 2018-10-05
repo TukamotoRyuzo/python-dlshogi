@@ -31,6 +31,7 @@ args = parser.parse_args()
 logging.basicConfig(format='%(asctime)s\t%(levelname)s\t%(message)s', datefmt='%Y/%m/%d %H:%M:%S', filename=args.log, level=logging.DEBUG)
 
 p_net = PolicyNetwork()
+p_net.summary()
 
 # Init/Resume
 if args.initmodel:
