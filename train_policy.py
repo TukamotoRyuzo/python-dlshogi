@@ -117,7 +117,7 @@ for e in range(args.epoch):
     for i in range(0, len(positions_train_shuffled) - args.batchsize, args.batchsize):
         x, t = mini_batch(positions_train_shuffled, i, args.batchsize)
         y = model(x)
-
+        print(y)
         model.cleargrads()
         loss = F.softmax_cross_entropy(y, t)
         loss.backward()
