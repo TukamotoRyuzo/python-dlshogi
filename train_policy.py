@@ -1,9 +1,9 @@
 ﻿import numpy as np
 
-from pydlshogi.common import *
+import pydlshogi.common as common
 from pydlshogi.network.policy import PolicyNetwork
-from pydlshogi.features import *
-from pydlshogi.read_kifu import *
+import pydlshogi.features as features
+import pydlshogi.read_kifu as read_kifu
 
 import argparse
 import random
@@ -30,19 +30,15 @@ args = parser.parse_args()
 
 logging.basicConfig(format='%(asctime)s\t%(levelname)s\t%(message)s', datefmt='%Y/%m/%d %H:%M:%S', filename=args.log, level=logging.DEBUG)
 
-model = PolicyNetwork()
-model.to_gpu()
-
-optimizer = optimizers.SGD(lr=args.lr)
-optimizer.setup(model)
+p_net = PolicyNetwork()
 
 # Init/Resume
 if args.initmodel:
     logging.info('Load model from {}'.format(args.initmodel))
-    serializers.load_npz(args.initmodel, model)
-if args.resume:
-    logging.info('Load optimizer state from {}'.format(args.resume))
-    serializers.load_npz(args.resume, optimizer)
+    p_net.load_weights(args.initmodel)
+# if args.resume:
+#     logging.info('Load optimizer state from {}'.format(args.resume))
+#     p_net.optimizer.set_(args.resume)
 
 logging.info('read kifu start')
 # 保存済みのpickleファイルがある場合、pickleファイルを読み込む
@@ -53,7 +49,7 @@ if os.path.exists(train_pickle_filename):
         positions_train = pickle.load(f)
     logging.info('load train pickle')
 else:
-    positions_train = read_kifu(args.kifulist_train)
+    positions_train = read_kifu.read_kifu(args.kifulist_train)
 
 # test data
 test_pickle_filename = re.sub(r'\..*?$', '', args.kifulist_test) + '.pickle'
@@ -62,7 +58,7 @@ if os.path.exists(test_pickle_filename):
         positions_test = pickle.load(f)
     logging.info('load test pickle')
 else:
-    positions_test = read_kifu(args.kifulist_test)
+    positions_test = read_kifu.read_kifu(args.kifulist_test)
 
 # 保存済みのpickleがない場合、pickleファイルを保存する
 if not os.path.exists(train_pickle_filename):
@@ -83,23 +79,23 @@ def mini_batch(positions, i, batchsize):
     mini_batch_data = []
     mini_batch_move = []
     for b in range(batchsize):
-        features, move, win = make_features(positions[i + b])
+        features, move, win = features.make_features(positions[i + b])
         mini_batch_data.append(features)
         mini_batch_move.append(move)
 
-    return (Variable(cuda.to_gpu(np.array(mini_batch_data, dtype=np.float32))),
-            Variable(cuda.to_gpu(np.array(mini_batch_move, dtype=np.int32))))
+    return (np.array(mini_batch_data, dtype=np.float32),
+            np.array(mini_batch_move, dtype=np.int32))
 
 def mini_batch_for_test(positions, batchsize):
     mini_batch_data = []
     mini_batch_move = []
     for b in range(batchsize):
-        features, move, win = make_features(random.choice(positions))
+        features, move, win = features.make_features(random.choice(positions))
         mini_batch_data.append(features)
         mini_batch_move.append(move)
 
-    return (Variable(cuda.to_gpu(np.array(mini_batch_data, dtype=np.float32))),
-            Variable(cuda.to_gpu(np.array(mini_batch_move, dtype=np.int32))))
+    return (np.array(mini_batch_data, dtype=np.float32),
+            np.array(mini_batch_move, dtype=np.int32))
 
 # train
 logging.info('start training')
@@ -112,23 +108,20 @@ for e in range(args.epoch):
     sum_loss_epoch = 0
     for i in range(0, len(positions_train_shuffled) - args.batchsize, args.batchsize):
         x, t = mini_batch(positions_train_shuffled, i, args.batchsize)
-        y = model(x)
-
-        model.cleargrads()
-        loss = F.softmax_cross_entropy(y, t)
-        loss.backward()
-        optimizer.update()
+        hist = p_net.fit(x, t, batch_size=x.shape[0], epochs=1, verbose=0)
 
         itr += 1
-        sum_loss += loss.data
+        sum_loss += hist.history['loss'][0]
         itr_epoch += 1
-        sum_loss_epoch += loss.data
+        sum_loss_epoch += hist.history['loss'][0]
+        iteration = i / args.batch_size
 
         # print train loss and test accuracy
-        if optimizer.t % args.eval_interval == 0:
+        if iteration % args.eval_interval == 0:
             x, t = mini_batch_for_test(positions_test, args.test_batchsize)
-            y = model(x)
-            logging.info('epoch = {}, iteration = {}, loss = {}, accuracy = {}'.format(optimizer.epoch + 1, optimizer.t, sum_loss / itr, F.accuracy(y, t).data))
+            y = p_net.evaluate(x, t)
+            logging.info('epoch = {}, iteration = {}, loss = {}, accuracy = {}'
+            .format(e + 1, iteration, sum_loss / itr, y[1]))
             itr = 0
             sum_loss = 0
 
@@ -138,14 +131,13 @@ for e in range(args.epoch):
     sum_test_accuracy = 0
     for i in range(0, len(positions_test) - args.batchsize, args.batchsize):
         x, t = mini_batch(positions_test, i, args.batchsize)
-        y = model(x)
+        y = p_net.evaluate(x, t)
         itr_test += 1
-        sum_test_accuracy += F.accuracy(y, t).data
-    logging.info('epoch = {}, iteration = {}, train loss avr = {}, test accuracy = {}'.format(optimizer.epoch + 1, optimizer.t, sum_loss_epoch / itr_epoch, sum_test_accuracy / itr_test))
+        sum_test_accuracy += y[1]
+    logging.info('epoch = {}, iteration = {}, loss = {}, accuracy = {}'
+           .format(e + 1, iteration, sum_loss / itr, sum_test_accuracy))
     
-    optimizer.new_epoch()
-
 logging.info('save the model')
-serializers.save_npz(args.model, model)
-logging.info('save the optimizer')
-serializers.save_npz(args.state, optimizer)
+p_net.save_weights(args.initmodel)
+#logging.info('save the optimizer')
+#serializers.save_npz(args.state, optimizer)
