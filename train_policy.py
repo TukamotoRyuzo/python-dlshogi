@@ -90,8 +90,8 @@ def mini_batch_for_test(positions, batchsize):
     mini_batch_data = []
     mini_batch_move = []
     for b in range(batchsize):
-        features, move, win = features.make_features(random.choice(positions))
-        mini_batch_data.append(features)
+        f, move, win = features.make_features(random.choice(positions))
+        mini_batch_data.append(f)
         mini_batch_move.append(move)
 
     return (np.array(mini_batch_data, dtype=np.float32),
