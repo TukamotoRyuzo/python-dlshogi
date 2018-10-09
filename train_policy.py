@@ -20,7 +20,7 @@ parser.add_argument('--test_batchsize', type=int, default=512, help='Number of p
 parser.add_argument('--epoch', '-e', type=int, default=1, help='Number of epoch times')
 parser.add_argument('--model', type=str, default='model/model_policy', help='model file name')
 parser.add_argument('--state', type=str, default='model/state_policy', help='state file name')
-parser.add_argument('--initmodel', '-m', default='model/mymodel', help='Initialize the model from given file')
+parser.add_argument('--initmodel', '-m', default='', help='Initialize the model from given file')
 parser.add_argument('--resume', '-r', default='', help='Resume the optimization from snapshot')
 parser.add_argument('--log', default=None, help='log file path')
 parser.add_argument('--lr', type=float, default=0.01, help='learning rate')
