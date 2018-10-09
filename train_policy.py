@@ -114,6 +114,7 @@ for e in range(args.epoch):
         #print(t.shape)
         # ネットワークの出力(None, 27, 9, 9)
         # 教師データ1
+        # one-hotベクトルに変換
         t = np.identity(9 * 9 * common.MOVE_DIRECTION_LABEL_NUM)[t]
         #print(t)
         #print(t.shape)
@@ -128,6 +129,9 @@ for e in range(args.epoch):
         # print train loss and test accuracy
         if iteration % args.eval_interval == 0:
             x, t = mini_batch_for_test(positions_test, args.test_batchsize)
+
+            # one-hotベクトルに変換
+            t = np.identity(9 * 9 * common.MOVE_DIRECTION_LABEL_NUM)[t]
             y = p_net.evaluate(x, t)
             logging.info('epoch = {}, iteration = {}, loss = {}, accuracy = {}'
             .format(e + 1, iteration, sum_loss / itr, y[1]))
