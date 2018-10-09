@@ -144,6 +144,7 @@ for e in range(args.epoch):
     sum_test_accuracy = 0
     for i in range(0, len(positions_test) - args.batchsize, args.batchsize):
         x, t = mini_batch(positions_test, i, args.batchsize)
+        t = np.identity(9 * 9 * common.MOVE_DIRECTION_LABEL_NUM)[t]
         y = p_net.evaluate(x, t)
         itr_test += 1
         sum_test_accuracy += y[1]
