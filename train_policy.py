@@ -4,7 +4,7 @@ import pydlshogi.common as common
 from pydlshogi.network.policy import PolicyNetwork
 import pydlshogi.features as features
 import pydlshogi.read_kifu as read_kifu
-
+from pydlshogi.common import *
 import argparse
 import random
 import pickle
@@ -111,9 +111,13 @@ for e in range(args.epoch):
         x, t = mini_batch(positions_train_shuffled, i, args.batchsize)
         #print(x)
         #print(x.shape)
-        #print(t)
-        #print(t.shape)
-        
+        print(t)
+        print(t.shape)
+        # ネットワークの出力(None, 27, 9, 9)
+        # 教師データ1
+        t = np.identity(9 * 9 * MOVE_DIRECTION_LABEL_NUM)[t]
+        print(t)
+        print(t.shape)
         hist = p_net.fit(x, t, batch_size=args.batchsize, epochs=1, verbose=0)
 
         itr += 1
