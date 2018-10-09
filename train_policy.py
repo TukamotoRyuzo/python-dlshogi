@@ -82,7 +82,8 @@ def mini_batch(positions, i, batchsize):
         f, move, win = features.make_features(positions[i + b])
         mini_batch_data.append(f)
         mini_batch_move.append(move)
-
+    
+    mini_batch_move = np.identity(9 * 9 * common.MOVE_DIRECTION_LABEL_NUM)[mini_batch_move]
     return (np.array(mini_batch_data, dtype=np.float32),
             np.array(mini_batch_move, dtype=np.int32))
 
@@ -94,6 +95,7 @@ def mini_batch_for_test(positions, batchsize):
         mini_batch_data.append(f)
         mini_batch_move.append(move)
 
+    mini_batch_move = np.identity(9 * 9 * common.MOVE_DIRECTION_LABEL_NUM)[mini_batch_move]
     return (np.array(mini_batch_data, dtype=np.float32),
             np.array(mini_batch_move, dtype=np.int32))
 
@@ -108,16 +110,7 @@ for e in range(args.epoch):
     sum_loss_epoch = 0
     for i in range(0, len(positions_train_shuffled) - args.batchsize, args.batchsize):
         x, t = mini_batch(positions_train_shuffled, i, args.batchsize)
-        #print(x)
-        #print(x.shape)
-        #print(t)
-        #print(t.shape)
-        # ネットワークの出力(None, 27, 9, 9)
-        # 教師データ1
-        # one-hotベクトルに変換
-        t = np.identity(9 * 9 * common.MOVE_DIRECTION_LABEL_NUM)[t]
-        #print(t)
-        #print(t.shape)
+
         hist = p_net.fit(x, t, batch_size=args.batchsize, epochs=1, verbose=0)
 
         itr += 1
@@ -129,9 +122,6 @@ for e in range(args.epoch):
         # print train loss and test accuracy
         if iteration % args.eval_interval == 0:
             x, t = mini_batch_for_test(positions_test, args.test_batchsize)
-
-            # one-hotベクトルに変換
-            t = np.identity(9 * 9 * common.MOVE_DIRECTION_LABEL_NUM)[t]
             y = p_net.evaluate(x, t)
             logging.info('epoch = {}, iteration = {}, loss = {}, accuracy = {}'
             .format(e + 1, iteration, sum_loss / itr, y[1]))
@@ -144,7 +134,6 @@ for e in range(args.epoch):
     sum_test_accuracy = 0
     for i in range(0, len(positions_test) - args.batchsize, args.batchsize):
         x, t = mini_batch(positions_test, i, args.batchsize)
-        t = np.identity(9 * 9 * common.MOVE_DIRECTION_LABEL_NUM)[t]
         y = p_net.evaluate(x, t)
         itr_test += 1
         sum_test_accuracy += y[1]
