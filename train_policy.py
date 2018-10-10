@@ -141,6 +141,9 @@ for e in range(args.epoch):
            .format(e + 1, iteration, sum_loss / itr, sum_test_accuracy / itr_test))
     
 logging.info('save the model')
-p_net.save_weights(args.initmodel)
+if args.initmodel:
+    p_net.save_weights(args.initmodel)
+else:
+    p_net.save_weights('init.h5')
 #logging.info('save the optimizer')
 #serializers.save_npz(args.state, optimizer)
