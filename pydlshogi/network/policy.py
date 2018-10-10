@@ -24,4 +24,5 @@ class PolicyNetwork(Sequential):
         self.add(Conv2D(filters = MOVE_DIRECTION_LABEL_NUM, kernel_size = (1, 1), activation = 'softmax', padding = 'same',
          use_bias = True, data_format = "channels_first"))
         self.add(Reshape((MOVE_DIRECTION_LABEL_NUM * 9 * 9,)))
+        self.add(Activation('softmax'))
         self.compile(loss = keras.losses.categorical_crossentropy, optimizer = keras.optimizers.SGD(), metrics = ['accuracy'])
