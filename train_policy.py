@@ -125,7 +125,7 @@ for e in range(args.epoch):
         # print train loss and test accuracy
         if iteration % args.eval_interval == 0:
             x, t = mini_batch_for_test(positions_test, args.test_batchsize)
-            y = p_net.evaluate(x, t)
+            y = p_net.evaluate(x, t, verbose=0)
             logging.info('epoch = {}, iteration = {}, loss = {}, accuracy = {}'
             .format(e + 1, iteration, sum_loss / itr, y[1]))
             itr = 0
