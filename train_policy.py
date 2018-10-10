@@ -9,7 +9,7 @@ import random
 import pickle
 import os
 import re
-
+from tqdm import tqdm
 import logging
 
 parser = argparse.ArgumentParser()
@@ -103,12 +103,15 @@ def mini_batch_for_test(positions, batchsize):
 logging.info('start training')
 itr = 0
 sum_loss = 0
+loss_hist = []
+acc_hist = []
+
 for e in range(args.epoch):
     positions_train_shuffled = random.sample(positions_train, len(positions_train))
 
     itr_epoch = 0
     sum_loss_epoch = 0
-    for i in range(0, len(positions_train_shuffled) - args.batchsize, args.batchsize):
+    for i in tqdm(range(0, len(positions_train_shuffled) - args.batchsize, args.batchsize)):
         x, t = mini_batch(positions_train_shuffled, i, args.batchsize)
 
         hist = p_net.fit(x, t, batch_size=args.batchsize, epochs=1, verbose=0)
@@ -117,7 +120,7 @@ for e in range(args.epoch):
         sum_loss += hist.history['loss'][0]
         itr_epoch += 1
         sum_loss_epoch += hist.history['loss'][0]
-        iteration = i / args.batchsize
+        iteration = int(i / args.batchsize)
 
         # print train loss and test accuracy
         if iteration % args.eval_interval == 0:
@@ -127,6 +130,9 @@ for e in range(args.epoch):
             .format(e + 1, iteration, sum_loss / itr, y[1]))
             itr = 0
             sum_loss = 0
+
+    loss_hist.append(hist.history['loss'][0])
+    acc_hist.append(hist.history['acc'][0])
 
     # validate test data
     logging.info('validate test data')
