@@ -134,11 +134,11 @@ for e in range(args.epoch):
     sum_test_accuracy = 0
     for i in range(0, len(positions_test) - args.batchsize, args.batchsize):
         x, t = mini_batch(positions_test, i, args.batchsize)
-        y = p_net.evaluate(x, t)
+        y = p_net.evaluate(x, t, verbose=0)
         itr_test += 1
         sum_test_accuracy += y[1]
     logging.info('epoch = {}, iteration = {}, loss = {}, accuracy = {}'
-           .format(e + 1, iteration, sum_loss / itr, sum_test_accuracy))
+           .format(e + 1, iteration, sum_loss / itr, sum_test_accuracy / itr_test))
     
 logging.info('save the model')
 p_net.save_weights(args.initmodel)
