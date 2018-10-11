@@ -1,40 +1,66 @@
-﻿import numpy as np
-
-import pydlshogi.common as common
-from pydlshogi.network.policy import PolicyNetwork
-import pydlshogi.features as features
-import pydlshogi.read_kifu as read_kifu
+﻿
 import argparse
 import random
 import pickle
 import os
 import re
-from tqdm import tqdm
 import logging
+
+import numpy as np
+
+from tqdm import tqdm
+
+from pydlshogi import common
+from pydlshogi import features
+from pydlshogi import read_kifu
+from pydlshogi.network.policy import PolicyNetwork
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('kifulist_train', type=str, help='train kifu list')
 parser.add_argument('kifulist_test', type=str, help='test kifu list')
-parser.add_argument('--batchsize', '-b', type=int, default=32, help='Number of positions in each mini-batch')
-parser.add_argument('--test_batchsize', type=int, default=512, help='Number of positions in each test mini-batch')
-parser.add_argument('--epoch', '-e', type=int, default=1, help='Number of epoch times')
-parser.add_argument('--model', type=str, default='model/model_policy', help='model file name')
-parser.add_argument('--state', type=str, default='model/state_policy', help='state file name')
-parser.add_argument('--initmodel', '-m', default='', help='Initialize the model from given file')
-parser.add_argument('--resume', '-r', default='', help='Resume the optimization from snapshot')
+parser.add_argument(
+    '--batchsize',
+    '-b',
+    type=int,
+    default=32,
+    help='Number of positions in each mini-batch')
+parser.add_argument(
+    '--test_batchsize',
+    type=int,
+    default=512,
+    help='Number of positions in each test mini-batch')
+parser.add_argument(
+    '--epoch', '-e', type=int, default=1, help='Number of epoch times')
+parser.add_argument(
+    '--model', type=str, default='model/model_policy', help='model file name')
+parser.add_argument(
+    '--state', type=str, default='model/state_policy', help='state file name')
+parser.add_argument(
+    '--initmodel',
+    '-m',
+    default='',
+    help='Initialize the model from given file')
+parser.add_argument(
+    '--resume', '-r', default='', help='Resume the optimization from snapshot')
 parser.add_argument('--log', default=None, help='log file path')
 parser.add_argument('--lr', type=float, default=0.01, help='learning rate')
-parser.add_argument('--eval_interval', '-i', type=int, default=1000, help='eval interval')
+parser.add_argument(
+    '--eval_interval', '-i', type=int, default=1000, help='eval interval')
 args = parser.parse_args()
 
-logging.basicConfig(format='%(asctime)s\t%(levelname)s\t%(message)s', datefmt='%Y/%m/%d %H:%M:%S', filename=args.log, level=logging.DEBUG)
+logging.basicConfig(
+    format='%(asctime)s\t%(levelname)s\t%(message)s',
+    datefmt='%Y/%m/%d %H:%M:%S',
+    filename=args.log,
+    level=logging.DEBUG)
 
 p_net = PolicyNetwork()
 p_net.summary()
 
 # Init/Resume
 if args.initmodel:
-    logging.info('Load model from {}'.format(args.initmodel))
+    logging.info('Load model from %s', args.initmodel)
     p_net.load_weights(args.initmodel)
 # if args.resume:
 #     logging.info('Load optimizer state from {}'.format(args.resume))
@@ -42,7 +68,7 @@ if args.initmodel:
 
 logging.info('read kifu start')
 # 保存済みのpickleファイルがある場合、pickleファイルを読み込む
-# train date
+# train data
 train_pickle_filename = re.sub(r'\..*?$', '', args.kifulist_train) + '.pickle'
 if os.path.exists(train_pickle_filename):
     with open(train_pickle_filename, 'rb') as f:
@@ -71,8 +97,9 @@ if not os.path.exists(test_pickle_filename):
     logging.info('save test pickle')
 logging.info('read kifu end')
 
-logging.info('train position num = {}'.format(len(positions_train)))
-logging.info('test position num = {}'.format(len(positions_test)))
+logging.info('train position num = %s', len(positions_train))
+logging.info('test position num = %s', len(positions_test))
+
 
 # mini batch
 def mini_batch(positions, i, batchsize):
@@ -82,10 +109,12 @@ def mini_batch(positions, i, batchsize):
         f, move, win = features.make_features(positions[i + b])
         mini_batch_data.append(f)
         mini_batch_move.append(move)
-    
-    mini_batch_move = np.identity(9 * 9 * common.MOVE_DIRECTION_LABEL_NUM)[mini_batch_move]
+
+    mini_batch_move = np.identity(
+        9 * 9 * common.MOVE_DIRECTION_LABEL_NUM)[mini_batch_move]
     return (np.array(mini_batch_data, dtype=np.float32),
             np.array(mini_batch_move, dtype=np.int32))
+
 
 def mini_batch_for_test(positions, batchsize):
     mini_batch_data = []
@@ -95,9 +124,11 @@ def mini_batch_for_test(positions, batchsize):
         mini_batch_data.append(f)
         mini_batch_move.append(move)
 
-    mini_batch_move = np.identity(9 * 9 * common.MOVE_DIRECTION_LABEL_NUM)[mini_batch_move]
+    mini_batch_move = np.identity(
+        9 * 9 * common.MOVE_DIRECTION_LABEL_NUM)[mini_batch_move]
     return (np.array(mini_batch_data, dtype=np.float32),
             np.array(mini_batch_move, dtype=np.int32))
+
 
 # train
 logging.info('start training')
@@ -107,11 +138,15 @@ loss_hist = []
 acc_hist = []
 
 for e in range(args.epoch):
-    positions_train_shuffled = random.sample(positions_train, len(positions_train))
+    positions_train_shuffled = random.sample(positions_train,
+                                             len(positions_train))
 
     itr_epoch = 0
     sum_loss_epoch = 0
-    for i in tqdm(range(0, len(positions_train_shuffled) - args.batchsize, args.batchsize)):
+    for i in tqdm(
+            range(0,
+                  len(positions_train_shuffled) - args.batchsize,
+                  args.batchsize)):
         x, t = mini_batch(positions_train_shuffled, i, args.batchsize)
 
         hist = p_net.fit(x, t, batch_size=args.batchsize, epochs=1, verbose=0)
@@ -126,8 +161,8 @@ for e in range(args.epoch):
         if iteration % args.eval_interval == 0:
             x, t = mini_batch_for_test(positions_test, args.test_batchsize)
             y = p_net.evaluate(x, t, verbose=0)
-            logging.info('epoch = {}, iteration = {}, loss = {}, accuracy = {}'
-            .format(e + 1, iteration, sum_loss / itr, y[1]))
+            logging.info('epoch = %s, iteration = %s, loss = %s, accuracy = %s',
+                         e + 1, iteration, sum_loss / itr, y[1])
             itr = 0
             sum_loss = 0
 
@@ -143,13 +178,11 @@ for e in range(args.epoch):
         y = p_net.evaluate(x, t, verbose=0)
         itr_test += 1
         sum_test_accuracy += y[1]
-    logging.info('epoch = {}, iteration = {}, loss = {}, accuracy = {}'
-           .format(e + 1, iteration, sum_loss / itr, sum_test_accuracy / itr_test))
-    
+    logging.info('epoch = %s, iteration = %s, loss = %s, accuracy = %s', e + 1,
+                 iteration, sum_loss / itr, sum_test_accuracy / itr_test)
+
 logging.info('save the model')
 if args.initmodel:
     p_net.save_weights(args.initmodel)
 else:
     p_net.save_weights('init.h5')
-#logging.info('save the optimizer')
-#serializers.save_npz(args.state, optimizer)
