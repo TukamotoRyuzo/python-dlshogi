@@ -1,4 +1,7 @@
-﻿def usi(player):
+﻿from pydlshogi.player.base_player import BasePlayer
+
+
+def usi(player: BasePlayer):
     while True:
         cmd_line = input()
         cmd = cmd_line.split(' ', 1)

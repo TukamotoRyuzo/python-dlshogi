@@ -1,8 +1,8 @@
 ﻿import numpy as np
 import shogi
-import copy
 
 from pydlshogi.common import *
+
 
 def make_input_features(piece_bb, occupied, pieces_in_hand):
     features = []
@@ -10,7 +10,7 @@ def make_input_features(piece_bb, occupied, pieces_in_hand):
         # board pieces
         for piece_type in shogi.PIECE_TYPES_WITH_NONE[1:]:
             bb = piece_bb[piece_type] & occupied[color]
-            feature = np.zeros(9*9)
+            feature = np.zeros(9 * 9)
             for pos in shogi.SQUARES:
                 if bb & shogi.BB_SQUARES[pos] > 0:
                     feature[pos] = 1
@@ -19,25 +19,31 @@ def make_input_features(piece_bb, occupied, pieces_in_hand):
         # pieces in hand
         for piece_type in range(1, 8):
             for n in range(shogi.MAX_PIECES_IN_HAND[piece_type]):
-                if piece_type in pieces_in_hand[color] and n < pieces_in_hand[color][piece_type]:
-                    feature = np.ones(9*9)
+                if piece_type in pieces_in_hand[
+                        color] and n < pieces_in_hand[color][piece_type]:
+                    feature = np.ones(9 * 9)
                 else:
-                    feature = np.zeros(9*9)
+                    feature = np.zeros(9 * 9)
                 features.append(feature.reshape((9, 9)))
 
     return features
+
 
 def make_input_features_from_board(board):
     if board.turn == shogi.BLACK:
         piece_bb = board.piece_bb
         occupied = (board.occupied[shogi.BLACK], board.occupied[shogi.WHITE])
-        pieces_in_hand = (board.pieces_in_hand[shogi.BLACK], board.pieces_in_hand[shogi.WHITE])
+        pieces_in_hand = (board.pieces_in_hand[shogi.BLACK],
+                          board.pieces_in_hand[shogi.WHITE])
     else:
         piece_bb = [bb_rotate_180(bb) for bb in board.piece_bb]
-        occupied = (bb_rotate_180(board.occupied[shogi.WHITE]), bb_rotate_180(board.occupied[shogi.BLACK]))
-        pieces_in_hand = (board.pieces_in_hand[shogi.WHITE], board.pieces_in_hand[shogi.BLACK])
+        occupied = (bb_rotate_180(board.occupied[shogi.WHITE]),
+                    bb_rotate_180(board.occupied[shogi.BLACK]))
+        pieces_in_hand = (board.pieces_in_hand[shogi.WHITE],
+                          board.pieces_in_hand[shogi.BLACK])
 
     return make_input_features(piece_bb, occupied, pieces_in_hand)
+
 
 def make_output_label(move, color):
     move_to = move.to_square
@@ -86,6 +92,7 @@ def make_output_label(move, color):
     move_label = 9 * 9 * move_direction + move_to
 
     return move_label
+
 
 def make_features(position):
     piece_bb, occupied, pieces_in_hand, move, win = position

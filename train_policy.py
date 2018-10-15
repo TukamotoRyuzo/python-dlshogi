@@ -1,5 +1,4 @@
-﻿
-import argparse
+﻿import argparse
 import random
 import pickle
 import os
@@ -15,38 +14,21 @@ from pydlshogi import features
 from pydlshogi import read_kifu
 from pydlshogi.network.policy import PolicyNetwork
 
-
 parser = argparse.ArgumentParser()
+# yapf: disable
 parser.add_argument('kifulist_train', type=str, help='train kifu list')
 parser.add_argument('kifulist_test', type=str, help='test kifu list')
-parser.add_argument(
-    '--batchsize',
-    '-b',
-    type=int,
-    default=32,
-    help='Number of positions in each mini-batch')
-parser.add_argument(
-    '--test_batchsize',
-    type=int,
-    default=512,
-    help='Number of positions in each test mini-batch')
-parser.add_argument(
-    '--epoch', '-e', type=int, default=1, help='Number of epoch times')
-parser.add_argument(
-    '--model', type=str, default='model/model_policy', help='model file name')
-parser.add_argument(
-    '--state', type=str, default='model/state_policy', help='state file name')
-parser.add_argument(
-    '--initmodel',
-    '-m',
-    default='',
-    help='Initialize the model from given file')
-parser.add_argument(
-    '--resume', '-r', default='', help='Resume the optimization from snapshot')
+parser.add_argument('--batchsize', '-b', type=int, default=32, help='Number of positions in each mini-batch')
+parser.add_argument('--test_batchsize', type=int, default=512, help='Number of positions in each test mini-batch')
+parser.add_argument('--epoch', '-e', type=int, default=1, help='Number of epoch times')
+parser.add_argument('--model', type=str, default='model/model_policy', help='model file name')
+parser.add_argument('--state', type=str, default='model/state_policy', help='state file name')
+parser.add_argument('--initmodel', '-m', default='', help='Initialize the model from given file')
+parser.add_argument('--resume', '-r', default='', help='Resume the optimization from snapshot')
 parser.add_argument('--log', default=None, help='log file path')
 parser.add_argument('--lr', type=float, default=0.01, help='learning rate')
-parser.add_argument(
-    '--eval_interval', '-i', type=int, default=1000, help='eval interval')
+parser.add_argument('--eval_interval', '-i', type=int, default=1000, help='eval interval')
+# yapf: enable
 args = parser.parse_args()
 
 logging.basicConfig(
@@ -62,9 +44,6 @@ p_net.summary()
 if args.initmodel:
     logging.info('Load model from %s', args.initmodel)
     p_net.load_weights(args.initmodel)
-# if args.resume:
-#     logging.info('Load optimizer state from {}'.format(args.resume))
-#     p_net.optimizer.set_(args.resume)
 
 logging.info('read kifu start')
 # 保存済みのpickleファイルがある場合、pickleファイルを読み込む

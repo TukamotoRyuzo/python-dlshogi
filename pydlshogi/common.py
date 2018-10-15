@@ -26,6 +26,8 @@ SQUARES_R180 = [
     shogi.B1, shogi.B2, shogi.B3, shogi.B4, shogi.B5, shogi.B6, shogi.B7, shogi.B8, shogi.B9,
     shogi.A1, shogi.A2, shogi.A3, shogi.A4, shogi.A5, shogi.A6, shogi.A7, shogi.A8, shogi.A9,
 ]
+
+
 def bb_rotate_180(bb):
     bb_r180 = 0
     for pos in shogi.SQUARES:

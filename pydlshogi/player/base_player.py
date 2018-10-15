@@ -1,5 +1,6 @@
 ﻿import shogi
 
+
 class BasePlayer:
     def __init__(self):
         self.board = shogi.Board()
