@@ -21,9 +21,9 @@ def boltzmann(logits, temperature):
 
 class PolicyPlayer(BasePlayer):
 
-    def __init__(self, modelfile):
+    def __init__(self):
         super().__init__()
-        self.modelfile = modelfile
+        self.modelfile = "/home/n-kobayashi/opt/python-dlshogi/init_epoch6.h5"
         self.model = None
 
     def usi(self):
@@ -46,14 +46,14 @@ class PolicyPlayer(BasePlayer):
             print('bestmove resign')
             return
 
-        features = fts.make_input_features_from_board(self.board)
+        features = np.array([fts.make_input_features_from_board(self.board)])
         # self.modelは確率を返すようになっている
         # logitも欲しいのでsoftmax前の値を取り出すようにする
         layer_name = 'reshape_1'
         logit_model = Model(
             inputs=self.model.input,
             outputs=self.model.get_layer(layer_name).output)
-        logits = logit_model.predict(features)
+        logits = logit_model.predict(features).ravel()
         # logitをsoftmaxしてprobabilityを計算
         exp_logits = np.exp(logits)
         probabilities = exp_logits / np.sum(exp_logits)
