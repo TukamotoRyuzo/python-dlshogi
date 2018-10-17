@@ -5,6 +5,8 @@ import os
 import re
 import logging
 
+from keras.optimizers import SGD
+
 import numpy as np
 
 from tqdm import tqdm
@@ -38,6 +40,7 @@ logging.basicConfig(
     level=logging.DEBUG)
 
 p_net = PolicyNetwork()
+p_net.compile(SGD(lr=args.lr), 'categorical_crossentropy', metrics=['accuracy'])
 p_net.summary()
 
 # Init/Resume

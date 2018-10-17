@@ -27,4 +27,3 @@ class PolicyNetwork(Sequential):
         self.add(Conv2D(MOVE_DIRECTION_LABEL_NUM, 1, activation='relu', padding='same', data_format="channels_first"))
         self.add(Reshape((MOVE_DIRECTION_LABEL_NUM * 9 * 9,)))
         self.add(Activation('softmax'))
-        self.compile(SGD(), 'categorical_crossentropy', metrics=['accuracy'])
