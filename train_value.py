@@ -13,6 +13,8 @@ from pydlshogi.network.value import ValueNetwork
 
 from keras.optimizers import SGD
 
+from tqdm import tqdm
+
 parser = argparse.ArgumentParser()
 # yapf: disable
 parser.add_argument('kifulist_train', type=str, help='train kifu list')
@@ -37,7 +39,7 @@ logging.basicConfig(
     level=logging.DEBUG)
 
 v_net = ValueNetwork()
-v_net.compile(SGD(lr=args.lr), 'categorical_crossentropy', metrics=['accuracy'])
+v_net.compile(SGD(lr=args.lr), 'binary_crossentropy', metrics=['accuracy'])
 v_net.summary()
 
 # Init/Resume
@@ -114,9 +116,9 @@ for e in range(args.epoch):
 
     itr_epoch = 0
     sum_loss_epoch = 0
-    for i in range(0, len(positions_train_shuffled) - args.batchsize, args.batchsize):
+    for i in tqdm(range(0, len(positions_train_shuffled) - args.batchsize, args.batchsize)):
         x, t = mini_batch(positions_train_shuffled, i, args.batchsize)
-        hist = v_net.fit(x, t, batch_size=args.batch_size, epochs=1, verbose=0)
+        hist = v_net.fit(x, t, batch_size=args.batchsize, epochs=1, verbose=0)
         itr += 1
         sum_loss += hist.history['loss'][0]
         itr_epoch += 1
@@ -149,4 +151,4 @@ for e in range(args.epoch):
 
 
 logging.info('save the model')
-v_net.save_weights(args.model)
+v_net.save_weights('value_init.h5')

@@ -1,4 +1,4 @@
-﻿from keras.layers import Activation, Conv2D, Dense
+﻿from keras.layers import Activation, Conv2D, Dense, Reshape
 from keras.models import Sequential
 
 from pydlshogi.common import MOVE_DIRECTION_LABEL_NUM
@@ -25,6 +25,7 @@ class ValueNetwork(Sequential):
         self.add(Conv2D(ch, 3, activation='relu', padding='same', data_format="channels_first"))
         self.add(Conv2D(ch, 3, activation='relu', padding='same', data_format="channels_first"))
         self.add(Conv2D(MOVE_DIRECTION_LABEL_NUM, 1, activation='relu', padding='same', data_format="channels_first"))
+        self.add(Reshape((MOVE_DIRECTION_LABEL_NUM * 9 * 9,)))
         self.add(Dense(fcl, activation='relu'))
         self.add(Dense(1))
         self.add(Activation('sigmoid'))
