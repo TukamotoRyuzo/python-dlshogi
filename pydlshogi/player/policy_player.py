@@ -61,15 +61,19 @@ class PolicyPlayer(BasePlayer):
         # 全ての合法手について
         legal_moves = []
         legal_logits = []
+        legal_probs = []
         for move in self.board.legal_moves:
             # ラベルに変換
             label = fts.make_output_label(move, self.board.turn)
             # 合法手とその指し手の確率(logits)を格納
             legal_moves.append(move)
             legal_logits.append(logits[label])
-            # 確率を表示
-            print('info string {:5} : {:.5f}'.format(move.usi(),
-                                                     probabilities[label]))
+            legal_probs.append(probabilities[label])
+        # 確率を表示
+        prob_idx = np.argsort(legal_probs)
+        for idx in prob_idx:
+            print('info string {:5} : {:.5f}'.format(legal_moves[idx].usi(),
+                                                     legal_probs[idx]))
 
         # 確率が最大の手を選ぶ(グリーディー戦略)
         selected_index = greedy(legal_logits)
