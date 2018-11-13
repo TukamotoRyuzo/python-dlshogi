@@ -8,12 +8,14 @@ import re
 from keras.metrics import binary_accuracy, categorical_accuracy
 from keras.optimizers import SGD
 
+from tqdm import tqdm
+
 import numpy as np
 
+import pydlshogi.common as cmn
 import pydlshogi.features as fts
 from pydlshogi.network.policy_value import PolicyValueNetwork
 from pydlshogi.read_kifu import read_kifu
-
 
 parser = argparse.ArgumentParser()
 # yapf: disable
@@ -39,6 +41,7 @@ logging.basicConfig(
     level=logging.DEBUG)
 
 pv_net = PolicyValueNetwork()
+opts = ['sgd', 'rmsprop', 'adagrad', 'adadelta', 'adam', 'adamax', 'nadam']
 pv_net.compile(
     optimizer=SGD(lr=args.lr),
     loss={
@@ -48,7 +51,8 @@ pv_net.compile(
     loss_weights={
         'policy_output': 1,
         'value_output': 1
-    })
+    },
+    metrics=['accuracy'])
 pv_net.summary()
 
 # Init/Resume
@@ -101,6 +105,8 @@ def mini_batch(positions, i, batchsize):
         mini_batch_data.append(features)
         mini_batch_move.append(move)
         mini_batch_win.append(win)
+    mini_batch_move = np.identity(
+        9 * 9 * cmn.MOVE_DIRECTION_LABEL_NUM)[mini_batch_move]
 
     return (np.array(mini_batch_data, dtype=np.float32),
             np.array(mini_batch_move, dtype=np.int32),
@@ -117,6 +123,8 @@ def mini_batch_for_test(positions, batchsize):
         mini_batch_move.append(move)
         mini_batch_win.append(win)
 
+    mini_batch_move = np.identity(
+        9 * 9 * cmn.MOVE_DIRECTION_LABEL_NUM)[mini_batch_move]
     return (np.array(mini_batch_data, dtype=np.float32),
             np.array(mini_batch_move, dtype=np.int32),
             np.array(mini_batch_win, dtype=np.int32).reshape((-1, 1)))
@@ -126,72 +134,68 @@ def mini_batch_for_test(positions, batchsize):
 logging.info('start training')
 itr = 0
 sum_loss = 0
-loss_hist = []
-acc_p_hist = []
-acc_v_hist = []
+sum_acc_p = 0
+sum_acc_v = 0
 for e in range(args.epoch):
-    positions_train_shuffled = random.sample(positions_train, len(positions_train))
+    positions_train_shuffled = random.sample(positions_train,
+                                             len(positions_train))
 
-    itr_epoch = 0
-    sum_loss_epoch = 0
-    for i in range(0, len(positions_train_shuffled) - args.batchsize, args.batchsize):
+    for i in tqdm(
+            range(0,
+                  len(positions_train_shuffled) - args.batchsize,
+                  args.batchsize)):
         x, t1, t2 = mini_batch(positions_train_shuffled, i, args.batchsize)
         hist = pv_net.fit(
             x, {
                 'policy_output': t1,
                 'value_output': t2
             },
-            batch_size=args.batch_size,
+            batch_size=args.batchsize,
             epochs=1,
             verbose=0)
 
         itr += 1
         sum_loss += hist.history['loss'][0]
-        itr_epoch += 1
-        sum_loss_epoch += hist.history['loss'][0]
+        sum_acc_p += hist.history['policy_output_acc'][0]
+        sum_acc_v += hist.history['value_output_acc'][0]
+
         iteration = int(i / args.batchsize)
 
-        # print train loss and test accuracy
+        # print train loss and accuracy
         if iteration % args.eval_interval == 0:
-            x, t1, t2 = mini_batch_for_test(positions_test, args.test_batchsize)
-            y1, y2 = pv_net.evaluate(
-                x, {
-                    'policy_output': t1,
-                    'value_output': t2
-                }, verbose=0)
-            logging.info('epoch = %s, iteration = %s, loss = %s, accuracy = %s, %s',
-                         e + 1, iteration, sum_loss / itr,
-                         categorical_accuracy(y1, t1),
-                         binary_accuracy(y2, t2))
+            logging.info(
+                'epoch = %s, iteration = %s, train loss = %s, train accuracy = %s, %s',
+                e + 1, iteration, sum_loss / itr, sum_acc_p / itr, sum_acc_v / itr)
             itr = 0
             sum_loss = 0
-
-    loss_hist.append(hist.history['loss'][0])
-    acc_p_hist.append(hist.history['acc'][0])
-    acc_v_hist.append(hist.history['acc'][1])
+            sum_acc_p = 0
+            sum_acc_v = 0
 
     # validate test data
     logging.info('validate test data')
     itr_test = 0
+    sum_train_loss = 0
     sum_test_accuracy1 = 0
     sum_test_accuracy2 = 0
     for i in range(0, len(positions_test) - args.batchsize, args.batchsize):
         x, t1, t2 = mini_batch(positions_test, i, args.batchsize)
-        y1, y2 = pv_net.evaluate(
-            x, {
-                'policy_output': t1,
-                'value_output': t2
-            }, verbose=0)
+        [loss, policy_loss, value_loss, policy_acc,
+         value_acc] = pv_net.evaluate(
+             x, {
+                 'policy_output': t1,
+                 'value_output': t2
+             }, verbose=0)
         itr_test += 1
-        sum_test_accuracy1 += categorical_accuracy(y1, t1)
-        sum_test_accuracy2 += binary_accuracy(y2, t2)
+        sum_train_loss += loss
+        sum_test_accuracy1 += policy_acc
+        sum_test_accuracy2 += value_acc
     logging.info(
-        'epoch = %s, iteration = %s, train loss avr = %s, test accuracy = %s, %s',
-        e + 1, iteration, sum_loss_epoch / itr_epoch, sum_test_accuracy1 / itr_test,
-        sum_test_accuracy2 / itr_test)
+        'epoch = %s, iteration = %s, test loss = %s, test accuracy = %s, %s',
+        e + 1, iteration, sum_train_loss / itr_test,
+        sum_test_accuracy1 / itr_test, sum_test_accuracy2 / itr_test)
 
-logging.info('save the model')
-if args.initmodel:
-    pv_net.save_weights(args.initmodel)
-else:
-    pv_net.save_weights('init.h5')
+    logging.info('save the model')
+    if args.initmodel:
+        pv_net.save_weights(args.initmodel)
+    else:
+        pv_net.save_weights('init_valuepolicy_epoch{}.h5'.format(e + 1))
