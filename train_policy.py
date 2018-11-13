@@ -83,7 +83,7 @@ logging.info('train position num = %s', len(positions_train))
 logging.info('test position num = %s', len(positions_test))
 
 
-# mini batch
+# mini batchb
 def mini_batch(positions, i, batchsize):
     mini_batch_data = []
     mini_batch_move = []

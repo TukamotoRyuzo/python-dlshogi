@@ -1,8 +1,9 @@
 ﻿import numpy as np
-import chainer
-from chainer import serializers
-from chainer import cuda, Variable
-import chainer.functions as F
+from keras.models import Model
+
+import pydlshogi.features as fts
+from pydlshogi.network.value import ValueNetwork
+from pydlshogi.player.base_player import BasePlayer
 
 import shogi
 
@@ -24,7 +25,7 @@ def boltzmann(logits, temperature):
 class Search1Player(BasePlayer):
     def __init__(self):
         super().__init__()
-        self.modelfile = r'H:\src\python-dlshogi\model\model_value'
+        self.modelfile = r'C:\Users\NPC05041\python-dlshogi\model\value_init_epoch6.h5'
         self.model = None
 
     def usi(self):
@@ -39,8 +40,7 @@ class Search1Player(BasePlayer):
     def isready(self):
         if self.model is None:
             self.model = ValueNetwork()
-            self.model.to_gpu()
-        serializers.load_npz(self.modelfile, self.model)
+        self.model.load_weights(self.modelfile)
         print('readyok')
 
     def go(self):
@@ -60,14 +60,20 @@ class Search1Player(BasePlayer):
 
             self.board.pop() # 1手戻す
 
-        x = Variable(cuda.to_gpu(np.array(features, dtype=np.float32)))
+        x = np.array(features, dtype=np.float32)
 
         # 自分の手番側の勝率にするため符号を反転
-        with chainer.no_backprop_mode():
-            y = -self.model(x)
+        # with chainer.no_backprop_mode():
+        # y = -self.model(x)
 
-            logits = cuda.to_cpu(y.data).reshape(-1)
-            probabilities = cuda.to_cpu(F.sigmoid(y).data).reshape(-1)
+        layer_name = 'dense_2'
+        logit_model = Model(
+            inputs=self.model.input,
+            outputs=self.model.get_layer(layer_name).output)
+        logits = logit_model.predict(x).ravel()
+        
+        # logitをsigmoidしてprobabilityを計算
+        probabilities = 1 / (1 + np.exp(-logits))
 
         for i, move in enumerate(legal_moves):
             # 勝率を表示
