@@ -5,7 +5,7 @@ import os
 import re
 import logging
 
-from keras.optimizers import SGD
+from keras.optimizers import SGD, Adam
 
 import numpy as np
 
@@ -14,7 +14,8 @@ from tqdm import tqdm
 from pydlshogi import common
 from pydlshogi import features
 from pydlshogi import read_kifu
-from pydlshogi.network.policy import PolicyNetwork
+# from pydlshogi.network.policy import PolicyNetwork
+from pydlshogi.network.policy_bn import PolicyNetwork
 
 parser = argparse.ArgumentParser()
 # yapf: disable
@@ -40,7 +41,8 @@ logging.basicConfig(
     level=logging.DEBUG)
 
 p_net = PolicyNetwork()
-p_net.compile(SGD(lr=args.lr), 'categorical_crossentropy', metrics=['accuracy'])
+p_net.compile(
+    Adam(), 'categorical_crossentropy', metrics=['accuracy'])
 p_net.summary()
 
 # Init/Resume
@@ -116,15 +118,11 @@ def mini_batch_for_test(positions, batchsize):
 logging.info('start training')
 itr = 0
 sum_loss = 0
-loss_hist = []
-acc_hist = []
-
+sum_acc = 0
 for e in range(args.epoch):
     positions_train_shuffled = random.sample(positions_train,
                                              len(positions_train))
 
-    itr_epoch = 0
-    sum_loss_epoch = 0
     for i in tqdm(
             range(0,
                   len(positions_train_shuffled) - args.batchsize,
@@ -135,36 +133,34 @@ for e in range(args.epoch):
 
         itr += 1
         sum_loss += hist.history['loss'][0]
-        itr_epoch += 1
-        sum_loss_epoch += hist.history['loss'][0]
+        sum_acc += hist.history['acc'][0]
         iteration = int(i / args.batchsize)
 
         # print train loss and test accuracy
         if iteration % args.eval_interval == 0:
-            x, t = mini_batch_for_test(positions_test, args.test_batchsize)
-            y = p_net.evaluate(x, t, verbose=0)
-            logging.info('epoch = %s, iteration = %s, loss = %s, accuracy = %s',
-                         e + 1, iteration, sum_loss / itr, y[1])
+            logging.info(
+                'epoch = %s, iteration = %s, train loss = %s, train accuracy = %s',
+                e + 1, iteration, sum_loss / itr, sum_acc / itr)
             itr = 0
             sum_loss = 0
-
-    loss_hist.append(hist.history['loss'][0])
-    acc_hist.append(hist.history['acc'][0])
+            sum_acc = 0
 
     # validate test data
     logging.info('validate test data')
     itr_test = 0
+    sum_test_loss = 0
     sum_test_accuracy = 0
     for i in range(0, len(positions_test) - args.batchsize, args.batchsize):
         x, t = mini_batch(positions_test, i, args.batchsize)
         y = p_net.evaluate(x, t, verbose=0)
         itr_test += 1
+        sum_test_loss += y[0]
         sum_test_accuracy += y[1]
-    logging.info('epoch = %s, iteration = %s, loss = %s, accuracy = %s', e + 1,
-                 iteration, sum_loss / itr, sum_test_accuracy / itr_test)
+    logging.info('epoch = %s, loss = %s, accuracy = %s', e + 1,
+                 sum_test_loss / itr_test, sum_test_accuracy / itr_test)
 
-logging.info('save the model')
-if args.initmodel:
-    p_net.save_weights(args.initmodel)
-else:
-    p_net.save_weights('init.h5')
+    logging.info('save the model')
+    if args.initmodel:
+        p_net.save_weights(args.initmodel)
+    else:
+        p_net.save_weights('policy_bn_epoch{}.h5'.format(e + 1))
