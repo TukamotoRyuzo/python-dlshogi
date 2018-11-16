@@ -41,7 +41,6 @@ logging.basicConfig(
     level=logging.DEBUG)
 
 pv_net = PolicyValueNetwork()
-opts = ['sgd', 'rmsprop', 'adagrad', 'adadelta', 'adam', 'adamax', 'nadam']
 pv_net.compile(
     optimizer=SGD(lr=args.lr),
     loss={
