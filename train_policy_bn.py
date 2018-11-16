@@ -84,11 +84,10 @@ logging.info('test position num = %s', len(positions_test))
 
 
 class KifuSequence(Sequence):
-    def __init__(self, positions, batch_size, phase):
+    def __init__(self, positions, batch_size):
         self.positions = positions
         self.batch_size = batch_size
         self.num_classes = 9 * 9 * cmn.MOVE_DIRECTION_LABEL_NUM
-        self.phase = phase
 
     def __getitem__(self, idx):
         if (idx + 1) * self.batch_size > len(self.positions):
@@ -114,8 +113,8 @@ class KifuSequence(Sequence):
 
 # train
 logging.info('start training')
-train_sequence = KifuSequence(positions_train, args.batchsize, "train")
-test_sequence = KifuSequence(positions_test, args.batchsize, "valid")
+train_sequence = KifuSequence(positions_train, args.batchsize)
+test_sequence = KifuSequence(positions_test, args.batchsize)
 p_net.fit_generator(
     train_sequence,
     steps_per_epoch=len(train_sequence),
