@@ -48,7 +48,7 @@ class MCTSPlayer(BasePlayer):
     def __init__(self):
         super().__init__()
         # モデルファイルのパス
-        self.modelfile = r'H:\src\python-dlshogi\model\model_policy_value_resnet'
+        self.modelfile = r'C:\shogi\python-dlshogi\model\model_policy_value_resnet'
         self.model = None # モデル
 
         # ノードの情報
@@ -173,12 +173,12 @@ class MCTSPlayer(BasePlayer):
     def eval_node(self, board, index):
         eval_features = [make_input_features_from_board(board)]
 
-        x = Variable(cuda.to_gpu(np.array(eval_features, dtype=np.float32)))
+        x = Variable(np.array(eval_features, dtype=np.float32))
         with chainer.no_backprop_mode():
             y1, y2 = self.model(x)
 
-            logits = cuda.to_cpu(y1.data)[0]
-            value = cuda.to_cpu(F.sigmoid(y2).data)[0]
+            logits = y1.data[0]
+            value = F.sigmoid(y2).data[0]
 
         current_node = self.uct_node[index]
         child_num = current_node.child_num
@@ -217,7 +217,6 @@ class MCTSPlayer(BasePlayer):
         # モデルをロード
         if self.model is None:
             self.model = PolicyValueResnet()
-            self.model.to_gpu()
         serializers.load_npz(self.modelfile, self.model)
         # ハッシュを初期化
         self.node_hash.initialize()
