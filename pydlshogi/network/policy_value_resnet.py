@@ -1,8 +1,9 @@
 ﻿from chainer import Chain
 import chainer.functions as F
 import chainer.links as L
-
-from pydlshogi.common import *
+from keras.layers import Activation, Input, Dense, Conv2D, Reshape
+from keras.models import Model
+from pydlshogi.common import MOVE_DIRECTION_LABEL_NUM
 
 ch = 192
 fcl = 256

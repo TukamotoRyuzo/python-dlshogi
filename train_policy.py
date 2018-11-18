@@ -14,8 +14,8 @@ from tqdm import tqdm
 from pydlshogi import common
 from pydlshogi import features
 from pydlshogi import read_kifu
-# from pydlshogi.network.policy import PolicyNetwork
-from pydlshogi.network.policy_bn import PolicyNetwork
+from pydlshogi.network.policy import PolicyNetwork
+#from pydlshogi.network.policy_bn import PolicyNetwork
 
 parser = argparse.ArgumentParser()
 # yapf: disable
