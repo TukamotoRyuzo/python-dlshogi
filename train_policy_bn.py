@@ -1,13 +1,12 @@
 ﻿import argparse
 import logging
-import math
 import os
 import pickle
+import random
 import re
 
-from keras.callbacks import ModelCheckpoint
-from keras.optimizers import Adam
-from keras.utils import Sequence, to_categorical
+from keras.optimizers import SGD
+from keras.utils import to_categorical
 
 import numpy as np
 
@@ -15,6 +14,8 @@ import pydlshogi.common as cmn
 import pydlshogi.features as fts
 from pydlshogi.network.policy_bn import PolicyNetwork
 from pydlshogi.read_kifu import read_kifu
+
+from tqdm import tqdm
 
 parser = argparse.ArgumentParser()
 # yapf: disable
@@ -40,7 +41,10 @@ logging.basicConfig(
     level=logging.DEBUG)
 
 p_net = PolicyNetwork()
-p_net.compile(Adam(), 'categorical_crossentropy', metrics=['accuracy'])
+p_net.compile(
+    SGD(lr=0.01, momentum=0.9, nesterov=True),
+    'categorical_crossentropy',
+    metrics=['accuracy'])
 p_net.summary()
 
 # Init/Resume
@@ -82,47 +86,87 @@ logging.info('read kifu end')
 logging.info('train position num = %s', len(positions_train))
 logging.info('test position num = %s', len(positions_test))
 
+num_classes = 9 * 9 * cmn.MOVE_DIRECTION_LABEL_NUM
 
-class KifuSequence(Sequence):
-    def __init__(self, positions, batch_size):
-        self.positions = positions
-        self.batch_size = batch_size
-        self.num_classes = 9 * 9 * cmn.MOVE_DIRECTION_LABEL_NUM
 
-    def __getitem__(self, idx):
-        if (idx + 1) * self.batch_size > len(self.positions):
-            batch_size = len(self.positions) - self.batch_size * idx
-        else:
-            batch_size = self.batch_size
-        mini_batch_data = [None] * batch_size
-        mini_batch_move = [None] * batch_size
+# mini batch
+def create_mini_batch(positions, batch_head, batch_size):
+    mini_batch_data = []
+    mini_batch_move = []
+    for b in range(batch_size):
+        features, move, _ = fts.make_features(positions[batch_head + b])
+        mini_batch_data.append(features)
+        mini_batch_move.append(move)
+    mini_batch_move = to_categorical(mini_batch_move, num_classes=num_classes)
 
-        for b in range(batch_size):
-            f, move, _ = fts.make_features(
-                self.positions[idx * self.batch_size + b])
-            mini_batch_data[b] = f
-            mini_batch_move[b] = move
-        mini_batch_move = to_categorical(
-            mini_batch_move, num_classes=self.num_classes)
-        return (np.array(mini_batch_data, dtype=np.float32),
-                np.array(mini_batch_move, dtype=np.int32))
-
-    def __len__(self):
-        return math.ceil(len(self.positions) / self.batch_size)
+    return (np.array(mini_batch_data, dtype=np.float),
+            np.array(mini_batch_move, dtype=np.int))
 
 
 # train
 logging.info('start training')
-train_sequence = KifuSequence(positions_train, args.batchsize)
-test_sequence = KifuSequence(positions_test, args.batchsize)
-p_net.fit_generator(
-    train_sequence,
-    steps_per_epoch=len(train_sequence),
-    epochs=args.epoch,
-    verbose=1,
-    callbacks=[
-        ModelCheckpoint(
-            "policy_bn_epoch{epoch:02d}_loss{loss:.2f}_acc{acc:.2f}_valloss{val_loss:.2f}_val_acc{val_acc:.2f}.h5"
-        )
-    ],
-    validation_data=test_sequence)
+train_size = len(positions_train)
+for e in range(args.epoch):
+    # train
+    train_loss_sum = 0
+    train_acc_sum = 0
+    train_itr = 0
+
+    positions_train_shuffled = random.sample(positions_train, train_size)
+
+    interval_loss_sum = 0
+    interval_acc_sum = 0
+    interval_itr = 0
+    for batch_pos in tqdm(range(0, train_size - args.batchsize, args.batchsize)):
+        x, t = create_mini_batch(positions_train_shuffled, batch_pos, args.batchsize)
+        hist = p_net.fit(x, t, batch_size=args.batchsize, epochs=1, verbose=0)
+
+        train_itr += 1
+        interval_loss_sum += hist.history['loss'][0]
+        interval_acc_sum += hist.history['acc'][0]
+        train_loss_sum += hist.history['loss'][0]
+        train_acc_sum += hist.history['acc'][0]
+
+        # print train loss and accuracy
+        if train_itr % args.eval_interval == 0:
+            logging.info(
+                'epoch = %s, iteration = %s, interval loss = %s, interval accuracy = %s',
+                e + 1, train_itr, "{:.4f}".format(interval_loss_sum / args.eval_interval),
+                "{:.4f}".format(interval_acc_sum / args.eval_interval))
+            interval_loss_sum = 0
+            interval_acc_sum = 0
+
+    end_pos = batch_pos + args.batchsize
+    remain_size = train_size - end_pos
+    if remain_size > 0:
+        x, t = create_mini_batch(positions_train_shuffled, end_pos, remain_size)
+        hist = p_net.fit(x, t, batch_size=remain_size, epochs=1, verbose=0)
+        train_itr += 1
+        train_loss_sum += hist.history['loss'][0]
+        train_acc_sum += hist.history['acc'][0]
+
+    logging.info(
+        "train finished: epoch = %s, iteration = %s, train loss = %s, train accuracy = %s",
+        e + 1, train_itr, train_loss_sum / train_itr, train_acc_sum / train_itr)
+
+    # validate
+    logging.info('start validation')
+    test_itr = 0
+    test_loss_sum = 0
+    test_acc_sum = 0
+    for i in tqdm(range(0, len(positions_test) - args.batchsize, args.batchsize)):
+        x, t = create_mini_batch(positions_test, i, args.batchsize)
+        [loss, acc] = p_net.evaluate(x, t, verbose=0)
+        test_itr += 1
+        test_loss_sum += loss
+        test_acc_sum += acc
+    logging.info(
+        'validation finished: epoch = %s, iteration = %s, test loss = %s, test accuracy = %s',
+        e + 1, test_itr, test_loss_sum / test_itr, test_acc_sum / test_itr)
+
+    logging.info("epoch %s finished", e + 1)
+    logging.info('save the model')
+    p_net.save_weights('init_policy_bn_epoch{}.h5'.format(e + 1))
+
+    # update learning rate
+    p_net.optimizer.lr = p_net.optimizer.lr * 0.92
