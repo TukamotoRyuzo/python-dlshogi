@@ -16,10 +16,9 @@ def PolicyMobileNetwork():
         padding='same',
         data_format='channels_first',
         kernel_initializer='he_normal',
-        input_shape=(104, 9, 9),
         name='initial_convolution')(board_image)
     x = layers.BatchNormalization(axis=1, name='initinal_bn')(x)
-    x = layers.Activation('relu', name='initial_relu')(x)
+    x = layers.ReLU(6., name='initial_relu')(x)
 
     # Separable Convolution
     x = _separable_conv_block(x, 1)
@@ -40,9 +39,9 @@ def PolicyMobileNetwork():
     x = layers.GlobalAveragePooling2D(data_format='channels_first')(x)
     x = layers.Reshape((1, 1, _ch))(x)
     x = layers.Dropout(rate=1e-3)(x)
-    x = layers.Conv2D(_classes, 1, padding='same', name='conv_preds')(x)
-    x = layers.Activation('softmax')
-    x = layers.Reshape((_classes,))
+    x = layers.Conv2D(_classes, 1, padding='same', use_bias=False, name='conv_preds')(x)
+    x = layers.Reshape((_classes,))(x)
+    x = layers.Activation('softmax')(x)
 
     model = Model(board_image, x, name='PoliceMobileNetwork')
 
@@ -59,7 +58,7 @@ def _separable_conv_block(x, block_id):
         depthwise_initializer='he_normal',
         name='conv_dw_{}'.format(block_id))(x)
     x = layers.BatchNormalization(axis=1, name='conv_dw_{}_bn'.format(block_id))(x)
-    x = layers.Activation('relu', name='conv_dw_{}_relu'.format(block_id))(x)
+    x = layers.ReLU(6., name='conv_dw_{}_relu'.format(block_id))(x)
 
     # Pointwise Convolution
     x = layers.Conv2D(
@@ -69,8 +68,8 @@ def _separable_conv_block(x, block_id):
         use_bias=False,
         data_format='channels_first',
         kernel_initializer='he_normal',
-        name='conv_pw_{}'.format(block_id))
+        name='conv_pw_{}'.format(block_id))(x)
     x = layers.BatchNormalization(axis=1, name='conv_pw_{}_bn'.format(block_id))(x)
-    x = layers.Activation('relu', name='conv_pw_{}_relu'.format(block_id))(x)
+    x = layers.ReLU(6., name='conv_pw_{}_relu'.format(block_id))(x)
 
     return x
