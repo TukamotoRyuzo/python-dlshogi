@@ -1,17 +1,19 @@
 ﻿import argparse
-import random
-import pickle
-import os
-import re
 import logging
+import os
+import pickle
+import random
+import re
+
+from keras.optimizers import SGD
+from keras.utils import to_categorical
 
 import numpy as np
 
+import pydlshogi.common as cmn
 import pydlshogi.features as fts
-from pydlshogi.read_kifu import read_kifu
 from pydlshogi.network.value import ValueNetwork
-
-from keras.optimizers import SGD
+from pydlshogi.read_kifu import read_kifu
 
 from tqdm import tqdm
 
@@ -116,7 +118,9 @@ for e in range(args.epoch):
 
     itr_epoch = 0
     sum_loss_epoch = 0
-    for i in tqdm(range(0, len(positions_train_shuffled) - args.batchsize, args.batchsize)):
+    for i in tqdm(
+            range(0,
+                  len(positions_train_shuffled) - args.batchsize, args.batchsize)):
         x, t = mini_batch(positions_train_shuffled, i, args.batchsize)
         hist = v_net.fit(x, t, batch_size=args.batchsize, epochs=1, verbose=0)
         itr += 1
@@ -148,7 +152,6 @@ for e in range(args.epoch):
     logging.info('epoch = %s, iteration = %s, test loss = %s, test accuracy = %s',
                  e + 1, iteration, sum_test_loss / itr_test,
                  sum_test_accuracy / itr_test)
-
 
 logging.info('save the model')
 v_net.save_weights('value_init.h5')
