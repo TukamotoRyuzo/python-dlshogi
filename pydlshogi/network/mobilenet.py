@@ -16,7 +16,6 @@ def PolicyMobileNetwork():
         padding='same',
         data_format='channels_first',
         kernel_initializer='he_normal',
-        input_shape=(104, 9, 9),
         name='initial_convolution')(board_image)
     x = layers.BatchNormalization(axis=1, name='initinal_bn')(x)
     x = layers.Activation('relu', name='initial_relu')(x)
