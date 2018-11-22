@@ -5,12 +5,13 @@ import pickle
 import random
 import re
 
+from keras.metrics import binary_accuracy
 from keras.optimizers import SGD
 
 import numpy as np
 
 import pydlshogi.features as fts
-from pydlshogi.network.value import ValueNetwork
+from pydlshogi.network.value_bn import ValueNetwork
 from pydlshogi.read_kifu import read_kifu
 
 from tqdm import tqdm
@@ -20,15 +21,11 @@ parser = argparse.ArgumentParser()
 parser.add_argument('kifulist_train', type=str, help='train kifu list')
 parser.add_argument('kifulist_test', type=str, help='test kifu list')
 parser.add_argument('--batchsize', '-b', type=int, default=32, help='Number of positions in each mini-batch')
-parser.add_argument('--test_batchsize', type=int, default=512, help='Number of positions in each test mini-batch')
 parser.add_argument('--epoch', '-e', type=int, default=1, help='Number of epoch times')
-parser.add_argument('--model', type=str, default='model/model_value', help='model file name')
-parser.add_argument('--state', type=str, default='model/state_value', help='state file name')
+parser.add_argument('--savedir', type=str, default='model/model_value', help='model file name')
 parser.add_argument('--initmodel', '-m', default='', help='Initialize the model from given file')
-parser.add_argument('--resume', '-r', default='', help='Resume the optimization from snapshot')
 parser.add_argument('--log', default=None, help='log file path')
 parser.add_argument('--lr', type=float, default=0.01, help='learning rate')
-parser.add_argument('--eval_interval', '-i', type=int, default=1000, help='eval interval')
 # yapf: enable
 args = parser.parse_args()
 
@@ -40,9 +37,9 @@ logging.basicConfig(
 
 v_net = ValueNetwork()
 v_net.compile(
-    SGD(lr=0.01, momentum=0.9, nesterov=True),
+    SGD(lr=0.005, momentum=0.9, nesterov=True),
     'binary_crossentropy',
-    metrics=['accuracy'])
+    metrics=[binary_accuracy])
 v_net.summary()
 
 # Init/Resume
@@ -101,6 +98,7 @@ def create_mini_batch(positions, batch_head, batch_size):
 # train
 logging.info('start training')
 train_size = len(positions_train)
+eval_interval = 1000
 for e in range(args.epoch):
     # train
     train_loss_sum = 0
@@ -111,24 +109,22 @@ for e in range(args.epoch):
 
     interval_loss_sum = 0
     interval_acc_sum = 0
-    interval_itr = 0
     for batch_pos in tqdm(range(0, train_size - args.batchsize, args.batchsize)):
         x, t = create_mini_batch(positions_train_shuffled, batch_pos, args.batchsize)
-        hist = v_net.fit(x, t, batch_size=args.batchsize, epochs=1, verbose=0)
+        batch_loss, batch_accuracy = v_net.train_on_batch(x, t)
 
         train_itr += 1
-        interval_loss_sum += hist.history['loss'][0]
-        interval_acc_sum += hist.history['acc'][0]
-        train_loss_sum += hist.history['loss'][0]
-        train_acc_sum += hist.history['acc'][0]
+        interval_loss_sum += batch_loss
+        interval_acc_sum += batch_accuracy
+        train_loss_sum += batch_loss
+        train_acc_sum += batch_accuracy
 
         # print train loss and accuracy
-        if train_itr % args.eval_interval == 0:
+        if train_itr % eval_interval == 0:
             logging.info(
                 'epoch = %s, iteration = %s, interval loss = %s, interval accuracy = %s',
-                e + 1, train_itr, "{:.4f}".format(
-                    interval_loss_sum / args.eval_interval), "{:.4f}".format(
-                        interval_acc_sum / args.eval_interval))
+                e + 1, train_itr, "{:.4f}".format(interval_loss_sum / eval_interval),
+                "{:.4f}".format(interval_acc_sum / eval_interval))
             interval_loss_sum = 0
             interval_acc_sum = 0
 
@@ -136,10 +132,10 @@ for e in range(args.epoch):
     remain_size = train_size - end_pos
     if remain_size > 0:
         x, t = create_mini_batch(positions_train_shuffled, end_pos, remain_size)
-        hist = v_net.fit(x, t, batch_size=remain_size, epochs=1, verbose=0)
+        batch_loss, batch_accuracy = v_net.train_on_batch(x, t)
         train_itr += 1
-        train_loss_sum += hist.history['loss'][0]
-        train_acc_sum += hist.history['acc'][0]
+        train_loss_sum += batch_loss
+        train_acc_sum += batch_accuracy
 
     logging.info(
         "train finished: epoch = %s, iteration = %s, train loss = %s, train accuracy = %s",
@@ -152,7 +148,7 @@ for e in range(args.epoch):
     test_acc_sum = 0
     for i in tqdm(range(0, len(positions_test) - args.batchsize, args.batchsize)):
         x, t = create_mini_batch(positions_test, i, args.batchsize)
-        [loss, acc] = v_net.evaluate(x, t, verbose=0)
+        [loss, acc] = v_net.test_on_batch(x, t)
         test_itr += 1
         test_loss_sum += loss
         test_acc_sum += acc
@@ -162,7 +158,7 @@ for e in range(args.epoch):
 
     logging.info("epoch %s finished", e + 1)
     logging.info('save the model')
-    v_net.save_weights('init_policy_bn_epoch{}.h5'.format(e + 1))
+    v_net.save_weights('init_value_bn_epoch{}.h5'.format(e + 1))
 
     # update learning rate
     v_net.optimizer.lr = v_net.optimizer.lr * 0.92
