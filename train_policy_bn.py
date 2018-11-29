@@ -5,7 +5,7 @@ import random
 from keras.optimizers import SGD
 
 import pydlshogi.common as cmn
-from pydlshogi.network.policy_bn import PolicyNetwork
+from pydlshogi.network.mobilenet import PolicyMobileNetwork
 
 from tqdm import tqdm
 
@@ -34,7 +34,7 @@ logging.basicConfig(
     filename=args.log,
     level=logging.DEBUG)
 
-p_net = PolicyNetwork()
+p_net = PolicyMobileNetwork()
 p_net.compile(
     optimizer=SGD(lr=0.01, momentum=0.9, nesterov=True),
     loss='categorical_crossentropy',
@@ -109,6 +109,13 @@ for e in range(args.epoch):
         x, t1, _ = create_mini_batch(positions_train_shuffled, end_pos, remain_size)
         results = p_net.train_on_batch(x, t1)
         train_status.update(results)
+    train_status.calc_mean()
+    logging.info(
+        'train finished: epoch = %s, iteration = %s, train loss = %s, train accuracy = %s',
+        e + 1,
+        train_status.iter_num,
+        "{:.4f}".format(train_status.loss),
+        "{:.4f}".format(train_status.acc))  # yapf: disable
 
     # validate test data
     logging.info('validate test data')
@@ -128,6 +135,6 @@ for e in range(args.epoch):
 
     logging.info("epoch %s finished", e + 1)
     logging.info('save the model')
-    p_net.save_weights('policy_bn_epoch{}.h5'.format(e + 1))
+    p_net.save_weights('policy_mobile_epoch{}.h5'.format(e + 1))
 
     p_net.optimizer.lr = p_net.optimizer.lr * 0.92
