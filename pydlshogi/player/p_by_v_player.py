@@ -66,13 +66,14 @@ class PolicyByValuePlayer(BasePlayer):
         for move in self.board.legal_moves:
             # ラベルに変換
             label = fts.make_output_label(move, self.board.turn)
-            # 合法手とその指し手の確率(logits)を格納
-            legal_moves.append(move)
-            legal_move_probs.append(move_probs[label])
-            # 合法手の盤面画像を保存
-            self.board.push(move)
-            legal_feats.append(fts.make_input_features_from_board(self.board))
-            self.board.pop()
+            # 価値ネットの精度が低いので、方策ネットで着手確率5%未満の手は枝刈りしておく
+            if move_probs[label] > 0.05:
+                # 合法手とその指し手の確率(logits)を格納
+                legal_moves.append(move)
+                legal_move_probs.append(move_probs[label])
+                self.board.push(move)
+                legal_feats.append(fts.make_input_features_from_board(self.board))
+                self.board.pop()
         # 合法手の勝率を計算
         x = np.array(legal_feats, dtype=np.float)
         legal_win_probs = 1 - self.v_model.predict_on_batch(x).ravel()
