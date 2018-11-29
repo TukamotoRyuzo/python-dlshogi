@@ -1,20 +1,15 @@
 ﻿import argparse
 import logging
-import math
-import os
-import pickle
-import re
+import random
 
-from keras.callbacks import ModelCheckpoint
 from keras.optimizers import SGD
-from keras.utils import Sequence, to_categorical
-
-import numpy as np
 
 import pydlshogi.common as cmn
-import pydlshogi.features as fts
 from pydlshogi.network.mobilenet import PolicyMobileNetwork
-from pydlshogi.read_kifu import read_kifu
+
+from tqdm import tqdm
+
+from train_tools import create_mini_batch, load_kifu_data
 
 parser = argparse.ArgumentParser()
 # yapf: disable
@@ -23,10 +18,13 @@ parser.add_argument('kifulist_test', type=str, help='test kifu list')
 parser.add_argument('--batchsize', '-b', type=int, default=32, help='Number of positions in each mini-batch')
 parser.add_argument('--test_batchsize', type=int, default=512, help='Number of positions in each test mini-batch')
 parser.add_argument('--epoch', '-e', type=int, default=1, help='Number of epoch times')
-parser.add_argument('--model', type=str, default='model/model_policy', help='model file name')
+parser.add_argument('--model', type=str, default='model/model_policy_value', help='model file name')
+parser.add_argument('--state', type=str, default='model/state_policy_value', help='state file name')
 parser.add_argument('--initmodel', '-m', default='', help='Initialize the model from given file')
+parser.add_argument('--resume', '-r', default='', help='Resume the optimization from snapshot')
 parser.add_argument('--log', default=None, help='log file path')
 parser.add_argument('--lr', type=float, default=0.01, help='learning rate')
+parser.add_argument('--eval_interval', '-i', type=int, default=1000, help='eval interval')
 # yapf: enable
 args = parser.parse_args()
 
@@ -38,7 +36,9 @@ logging.basicConfig(
 
 p_net = PolicyMobileNetwork()
 p_net.compile(
-    SGD(momentum=0.9, nesterov=True), 'categorical_crossentropy', metrics=['accuracy'])
+    optimizer=SGD(lr=0.01, momentum=0.9, nesterov=True),
+    loss='categorical_crossentropy',
+    metrics=['accuracy'])
 p_net.summary()
 
 # Init/Resume
@@ -46,81 +46,95 @@ if args.initmodel:
     logging.info('Load model from %s', args.initmodel)
     p_net.load_weights(args.initmodel)
 
-logging.info('read kifu start')
-# 保存済みのpickleファイルがある場合、pickleファイルを読み込む
-# train data
-train_pickle_filename = re.sub(r'\..*?$', '', args.kifulist_train) + '.pickle'
-if os.path.exists(train_pickle_filename):
-    with open(train_pickle_filename, 'rb') as f:
-        positions_train = pickle.load(f)
-    logging.info('load train pickle')
-else:
-    positions_train = read_kifu(args.kifulist_train)
+positions_train, positions_test = load_kifu_data(args)
 
-# test data
-test_pickle_filename = re.sub(r'\..*?$', '', args.kifulist_test) + '.pickle'
-if os.path.exists(test_pickle_filename):
-    with open(test_pickle_filename, 'rb') as f:
-        positions_test = pickle.load(f)
-    logging.info('load test pickle')
-else:
-    positions_test = read_kifu(args.kifulist_test)
-
-# 保存済みのpickleがない場合、pickleファイルを保存する
-if not os.path.exists(train_pickle_filename):
-    with open(train_pickle_filename, 'wb') as f:
-        pickle.dump(positions_train, f, pickle.HIGHEST_PROTOCOL)
-    logging.info('save train pickle')
-if not os.path.exists(test_pickle_filename):
-    with open(test_pickle_filename, 'wb') as f:
-        pickle.dump(positions_test, f, pickle.HIGHEST_PROTOCOL)
-    logging.info('save test pickle')
-logging.info('read kifu end')
-
-logging.info('train position num = %s', len(positions_train))
-logging.info('test position num = %s', len(positions_test))
+num_classes = 9 * 9 * cmn.MOVE_DIRECTION_LABEL_NUM
 
 
-class KifuSequence(Sequence):
+class Status:
 
-    def __init__(self, positions, batch_size, phase):
-        self.positions = positions
-        self.batch_size = batch_size
-        self.num_classes = 9 * 9 * cmn.MOVE_DIRECTION_LABEL_NUM
-        self.phase = phase
+    def __init__(self):
+        self.loss_sum = 0
+        self.acc_sum = 0
+        self.iter_num = 0
+        self.loss = 0
+        self.acc = 0
 
-    def __getitem__(self, idx):
-        if (idx + 1) * self.batch_size > len(self.positions):
-            batch_size = len(self.positions) - self.batch_size * idx
-        else:
-            batch_size = self.batch_size
-        mini_batch_data = [None] * batch_size
-        mini_batch_move = [None] * batch_size
+    def update(self, results):
+        self.loss_sum += results[0]
+        self.acc_sum += results[1]
+        self.iter_num += 1
 
-        for b in range(batch_size):
-            f, move, _ = fts.make_features(self.positions[idx * self.batch_size + b])
-            mini_batch_data[b] = f
-            mini_batch_move[b] = move
-        mini_batch_move = to_categorical(mini_batch_move, num_classes=self.num_classes)
-        return (np.array(mini_batch_data, dtype=np.float32),
-                np.array(mini_batch_move, dtype=np.int32))
+    def calc_mean(self):
+        self.loss = self.loss_sum / self.iter_num
+        self.acc = self.acc_sum / self.iter_num
 
-    def __len__(self):
-        return math.ceil(len(self.positions) / self.batch_size)
+    def reset(self):
+        self.loss_sum = 0
+        self.acc_sum = 0
+        self.iter_num = 0
 
 
-# train
+# train & validation
 logging.info('start training')
-train_sequence = KifuSequence(positions_train, args.batchsize, "train")
-test_sequence = KifuSequence(positions_test, args.batchsize, "valid")
-p_net.fit_generator(
-    train_sequence,
-    steps_per_epoch=len(train_sequence),
-    epochs=args.epoch,
-    verbose=1,
-    callbacks=[
-        ModelCheckpoint(
-            "policy_mobile_epoch{epoch:02d}_loss{loss:.2f}_acc{acc:.2f}_valloss{val_loss:.2f}_val_acc{val_acc:.2f}.h5"
-        )
-    ],
-    validation_data=test_sequence)
+train_size = len(positions_train)
+for e in range(args.epoch):
+    # train
+    train_status = Status()
+
+    positions_train_shuffled = random.sample(positions_train, train_size)
+
+    interval_status = Status()
+    for batch_pos in tqdm(range(0, train_size - args.batchsize, args.batchsize)):
+        x, t1, _ = create_mini_batch(positions_train_shuffled, batch_pos,
+                                     args.batchsize)
+        results = p_net.train_on_batch(x, t1)
+        train_status.update(results)
+        interval_status.update(results)
+
+        # print train loss and accuracy
+        if train_status.iter_num % args.eval_interval == 0:
+            interval_status.calc_mean()
+            logging.info(
+                'epoch = %s, iteration = %s, interval loss = %s, interval accuracy = %s',
+                e + 1,
+                train_status.iter_num,
+                "{:.4f}".format(interval_status.loss),
+                "{:.4f}".format(interval_status.acc))  # yapf: disable
+            interval_status.reset()
+
+    end_pos = batch_pos + args.batchsize
+    remain_size = train_size - end_pos
+    if remain_size > 0:
+        x, t1, _ = create_mini_batch(positions_train_shuffled, end_pos, remain_size)
+        results = p_net.train_on_batch(x, t1)
+        train_status.update(results)
+    train_status.calc_mean()
+    logging.info(
+        'train finished: epoch = %s, iteration = %s, train loss = %s, train accuracy = %s',
+        e + 1,
+        train_status.iter_num,
+        "{:.4f}".format(train_status.loss),
+        "{:.4f}".format(train_status.acc))  # yapf: disable
+
+    # validate test data
+    logging.info('validate test data')
+    test_status = Status()
+    for i in range(0, len(positions_test) - args.batchsize, args.batchsize):
+        x, t1, _ = create_mini_batch(positions_test, i, args.batchsize)
+        result = p_net.test_on_batch(x, t1)
+        test_status.update(result)
+
+    test_status.calc_mean()
+    logging.info(
+        'validation finished: epoch = %s, iteration = %s, test loss = %s, test accuracy = %s',
+        e + 1,
+        test_status.iter_num,
+        "{:.4f}".format(test_status.loss),
+        "{:.4f}".format(test_status.acc))  # yapf: disable
+
+    logging.info("epoch %s finished", e + 1)
+    logging.info('save the model')
+    p_net.save_weights('policy_bn_epoch{}.h5'.format(e + 1))
+
+    p_net.optimizer.lr = p_net.optimizer.lr * 0.92
