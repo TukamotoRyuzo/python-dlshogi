@@ -15,11 +15,12 @@ num_classes = 9 * 9 * cmn.MOVE_DIRECTION_LABEL_NUM
 
 
 def create_mini_batch(positions, batch_head, batch_size):
-    mini_batch_data = np.empty((batch_size, 104, 9, 9), dtype=np.float)
+    mini_batch_data = np.empty((batch_size, 9, 9, 104), dtype=np.float)
     mini_batch_move = np.empty((batch_size), dtype=np.int)
     mini_batch_win = np.empty((batch_size), dtype=np.int)
     for b in range(batch_size):
         features, move, win = fts.make_features(positions[batch_head + b])
+        features = np.array(features).transpose((0, 2, 3, 1))
         mini_batch_data[b] = features
         mini_batch_move[b] = move
         mini_batch_win[b] = win

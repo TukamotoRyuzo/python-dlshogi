@@ -8,16 +8,15 @@ _classes = 9 * 9 * MOVE_DIRECTION_LABEL_NUM
 
 
 def PolicyMobileNetwork():
-    board_image = layers.Input(shape=(104, 9, 9))
+    board_image = layers.Input(shape=(9, 9, 104))
     # Initial Convolution
     x = layers.Conv2D(
         _ch,
         3,
         padding='same',
-        data_format='channels_first',
         kernel_initializer='he_normal',
         name='initial_convolution')(board_image)
-    x = layers.BatchNormalization(axis=1, name='initinal_bn')(x)
+    x = layers.BatchNormalization(name='initinal_bn')(x)
     x = layers.ReLU(6., name='initial_relu')(x)
 
     # Separable Convolution
@@ -36,12 +35,10 @@ def PolicyMobileNetwork():
     x = _separable_conv_block(x, 13)
 
     # output
-    # output
     x = layers.Conv2D(
         MOVE_DIRECTION_LABEL_NUM,
         1,
         padding='same',
-        data_format="channels_first",
         name='conv_out')(x)
     x = layers.Reshape((_classes,), name='reshape')(x)
     movement_probability = layers.Activation('softmax', name='output')(x)
@@ -56,10 +53,9 @@ def _separable_conv_block(x, block_id):
     x = layers.DepthwiseConv2D(
         3,
         padding='same',
-        data_format='channels_first',
         depthwise_initializer='he_normal',
         name='conv_dw_{}'.format(block_id))(x)
-    x = layers.BatchNormalization(axis=1, name='conv_dw_{}_bn'.format(block_id))(x)
+    x = layers.BatchNormalization(name='conv_dw_{}_bn'.format(block_id))(x)
     x = layers.ReLU(name='conv_dw_{}_relu'.format(block_id))(x)
 
     # Pointwise Convolution
@@ -67,10 +63,9 @@ def _separable_conv_block(x, block_id):
         _ch,
         1,
         padding='same',
-        data_format='channels_first',
         kernel_initializer='he_normal',
         name='conv_pw_{}'.format(block_id))(x)
-    x = layers.BatchNormalization(axis=1, name='conv_pw_{}_bn'.format(block_id))(x)
+    x = layers.BatchNormalization(name='conv_pw_{}_bn'.format(block_id))(x)
     x = layers.ReLU(name='conv_pw_{}_relu'.format(block_id))(x)
 
     return x

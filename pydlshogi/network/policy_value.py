@@ -11,7 +11,7 @@ num_classes = MOVE_DIRECTION_LABEL_NUM * 9 * 9
 
 def PolicyValueNetwork():
     # input
-    board_image = layers.Input(shape=(104, 9, 9))
+    board_image = layers.Input(shape=(9, 9, 104))
 
     # common part
     x = _conv_block(board_image, 1)
@@ -33,7 +33,6 @@ def PolicyValueNetwork():
         MOVE_DIRECTION_LABEL_NUM,
         1,
         padding='same',
-        data_format="channels_first",
         name='policy_conv_out')(common_out)
     x = layers.Reshape((num_classes,), name='policy_reshape')(x)
     policy_out = layers.Activation('softmax', name='policy_out')(x)
@@ -45,7 +44,6 @@ def PolicyValueNetwork():
         padding='same',
         activation='relu',
         kernel_initializer='he_normal',
-        data_format="channels_first",
         name='value_conv_out')(common_out)
     x = layers.Reshape((num_classes,), name='value_reshape')(x)
     x = layers.Dropout(0.5)(x)
@@ -64,9 +62,8 @@ def _conv_block(x, block_id):
         ch,
         3,
         padding='same',
-        data_format="channels_first",
         kernel_initializer='he_normal',
         name='conv_{}'.format(block_id))(x)
-    x = layers.BatchNormalization(axis=1, name='conv_{}_bn'.format(block_id))(x)
+    x = layers.BatchNormalization(name='conv_{}_bn'.format(block_id))(x)
     x = layers.ReLU(name='conv_{}_relu'.format(block_id))(x)
     return x

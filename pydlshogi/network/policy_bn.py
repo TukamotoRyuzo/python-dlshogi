@@ -9,7 +9,7 @@ _num_classes = MOVE_DIRECTION_LABEL_NUM * 9 * 9
 
 def PolicyNetwork():
     # input
-    board_image = layers.Input(shape=(104, 9, 9))
+    board_image = layers.Input(shape=(9, 9, 104))
 
     # convolution
     x = _conv_block(board_image, 1)
@@ -31,7 +31,6 @@ def PolicyNetwork():
         MOVE_DIRECTION_LABEL_NUM,
         1,
         padding='same',
-        data_format="channels_first",
         name='conv_out')(x)
     x = layers.Reshape((_num_classes,), name='reshape')(x)
     movement_probability = layers.Activation('softmax', name='output')(x)
@@ -46,9 +45,8 @@ def _conv_block(x, block_id):
         _ch,
         3,
         padding='same',
-        data_format="channels_first",
         kernel_initializer='he_normal',
         name='conv_{}'.format(block_id))(x)
-    x = layers.BatchNormalization(axis=1, name='conv_{}_bn'.format(block_id))(x)
+    x = layers.BatchNormalization(name='conv_{}_bn'.format(block_id))(x)
     x = layers.ReLU(name='conv_{}_relu'.format(block_id))(x)
     return x
