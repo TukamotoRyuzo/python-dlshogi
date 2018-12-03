@@ -17,6 +17,7 @@ def ShufflePolicy():
         3,
         padding='same',
         kernel_initializer='he_normal',
+        use_bias=False,
         name='initial_convolution')(board_image)
     x = layers.BatchNormalization(name='initinal_bn')(x)
     x = layers.ReLU(6., name='initial_relu')(x)
@@ -39,11 +40,7 @@ def ShufflePolicy():
     # output
     # x = layers.GlobalAveragePooling2D(data_format='channels_first')(x)
     # move_probs = layers.Dense(_classes, activation='softmax')(x)
-    x = layers.Conv2D(
-        MOVE_DIRECTION_LABEL_NUM,
-        1,
-        padding='same',
-        name='conv_out')(x)
+    x = layers.Conv2D(MOVE_DIRECTION_LABEL_NUM, 1, padding='same', name='conv_out')(x)
     x = layers.Reshape((_classes,), name='reshape')(x)
     move_probs = layers.Activation('softmax', name='output')(x)
 
@@ -60,8 +57,7 @@ def _shufflenet_unit(inputs, g_num, block_id):
 
     # group conv
     x = _group_conv(inputs, g_num, block_id, 'first')
-    x = layers.BatchNormalization(
-        name='shuffle_{}_{}_bn'.format(block_id, 'first'))(x)
+    x = layers.BatchNormalization(name='shuffle_{}_{}_bn'.format(block_id, 'first'))(x)
     x = layers.ReLU(6., name='shuffle_{}_relu'.format(block_id))(x)
 
     # shuffle channels
@@ -71,14 +67,14 @@ def _shufflenet_unit(inputs, g_num, block_id):
     x = layers.DepthwiseConv2D(
         3,
         padding='same',
+        use_bias=False, 
         depthwise_initializer='he_normal',
         name='conv_dw_{}'.format(block_id))(x)
     x = layers.BatchNormalization(name='conv_dw_{}_bn'.format(block_id))(x)
 
     # group conv
     x = _group_conv(x, g_num, block_id, 'last')
-    x = layers.BatchNormalization(
-        name='shuffle_{}_{}_bn'.format(block_id, 'last'))(x)
+    x = layers.BatchNormalization(name='shuffle_{}_{}_bn'.format(block_id, 'last'))(x)
 
     # output
     x = layers.add([inputs, x], name='shuffle_{}_out_add'.format(block_id))
@@ -96,13 +92,14 @@ def _group_conv(x, g_num, block_id, position):
         group = layers.Lambda(
             lambda z, ofs=offset: z[:, :, :, ofs:ofs + g_size],
             name='gconv_{}_{}_{}_slice'.format(block_id, position, g + 1))(x)
-        out_list.append(
-            layers.Conv2D(
-                g_size,
-                1,
-                padding='same',
-                kernel_initializer='he_normal',
-                name='gconv_{}_{}_{}'.format(block_id, position, g + 1))(group))
+        group = layers.Conv2D(
+            g_size,
+            1,
+            padding='same',
+            use_bias=False,
+            kernel_initializer='he_normal',
+            name='gconv_{}_{}_{}'.format(block_id, position, g + 1))(group)
+        out_list.append(group)
     out = layers.Concatenate(
         name='gconv_{}_{}_concat'.format(block_id, position))(out_list)
     return out
@@ -111,7 +108,7 @@ def _group_conv(x, g_num, block_id, position):
 def _channel_shuffle(x, g_num):
     height, width, channels = x.shape.as_list()[1:]
     g_size = channels // g_num
-    x = layers.Reshape((height, width, g_num, g_size))(x)  # divide channels
-    x = K.permute_dimensions(x, (0, 1, 2, 4, 3))  # transpose them
-    x = layers.Reshape((height, width, channels))(x)  # flatten
+    x = K.reshape(x, (-1, height, width, g_num, g_size))  # divide channels
+    x = K.permute_dimensions(x, (0, 1, 2, 4, 3))          # transpose them
+    x = K.reshape(x, (-1, height, width, channels))       # flatten
     return x
