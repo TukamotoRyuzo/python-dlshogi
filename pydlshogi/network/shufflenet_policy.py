@@ -1,6 +1,6 @@
-import keras.backend as K
-from keras import layers
-from keras.models import Model
+import chainer
+import chainer.links as L
+import chainer.functions as F
 
 from pydlshogi.common import MOVE_DIRECTION_LABEL_NUM
 
@@ -8,107 +8,98 @@ _ch = 192
 _classes = 9 * 9 * MOVE_DIRECTION_LABEL_NUM
 
 
-def ShufflePolicy():
-    board_image = layers.Input(shape=(9, 9, 104))
+class ShufflePolicy(chainer.Chain):
 
-    # Initial Convolution
-    x = layers.Conv2D(
-        _ch,
-        3,
-        padding='same',
-        kernel_initializer='he_normal',
-        use_bias=False,
-        name='initial_convolution')(board_image)
-    x = layers.BatchNormalization(name='initinal_bn')(x)
-    x = layers.ReLU(6., name='initial_relu')(x)
+    def __init__(self):
+        super().__init__()
+        he_w = chainer.initializers.HeNormal()
+        with self.init_scope():
+            self.init_conv = L.Convolution2D(
+                104, _ch, ksize=3, pad=1, nobias=True, initialW=he_w)
+            self.init_bn = L.BatchNormalization(_ch)
+            self.conv_blocks = _ShufflnetBlock(_ch, 4).repeat(12)
+            self.out_conv = _OutConv()
 
-    # shuffle convolution
-    x = _shufflenet_unit(x, 4, 1)
-    x = _shufflenet_unit(x, 4, 2)
-    x = _shufflenet_unit(x, 4, 3)
-    x = _shufflenet_unit(x, 4, 4)
-    x = _shufflenet_unit(x, 4, 5)
-    x = _shufflenet_unit(x, 4, 6)
-    x = _shufflenet_unit(x, 4, 7)
-    x = _shufflenet_unit(x, 4, 8)
-    x = _shufflenet_unit(x, 4, 9)
-    x = _shufflenet_unit(x, 4, 10)
-    x = _shufflenet_unit(x, 4, 11)
-    x = _shufflenet_unit(x, 4, 12)
-    x = _shufflenet_unit(x, 4, 13)
-
-    # output
-    # x = layers.GlobalAveragePooling2D(data_format='channels_first')(x)
-    # move_probs = layers.Dense(_classes, activation='softmax')(x)
-    x = layers.Conv2D(MOVE_DIRECTION_LABEL_NUM, 1, padding='same', name='conv_out')(x)
-    x = layers.Reshape((_classes,), name='reshape')(x)
-    move_probs = layers.Activation('softmax', name='output')(x)
-
-    shuffle_policy_model = Model(inputs=board_image, outputs=move_probs)
-
-    return shuffle_policy_model
+    def forward(self, x):
+        x = self.init_conv(x)
+        x = self.init_bn(x)
+        x = F.relu(x)
+        x = self.conv_blocks(x)
+        x = self.out_conv(x)
+        if chainer.config.train:
+            return x
+        return F.softmax(x)
 
 
-def _shufflenet_unit(inputs, g_num, block_id):
+class _ShufflnetBlock(chainer.Chain):
 
-    channels = inputs.shape.as_list()[-1]
-    assert channels % g_num == 0, 'group number {} must be a divisor of channels number {}'.format(
-        g_num, channels)
+    def __init__(self, in_channels, groups):
+        super().__init__()
+        he_w = chainer.initializers.HeNormal()
+        self.groups = groups
+        with self.init_scope():
+            self.group_conv1 = L.Convolution2D(
+                in_channels,
+                _ch,
+                ksize=3,
+                pad=1,
+                nobias=True,
+                initialW=he_w,
+                groups=groups)
+            self.bn1 = L.BatchNormalization(_ch)
 
-    # group conv
-    x = _group_conv(inputs, g_num, block_id, 'first')
-    x = layers.BatchNormalization(name='shuffle_{}_{}_bn'.format(block_id, 'first'))(x)
-    x = layers.ReLU(6., name='shuffle_{}_relu'.format(block_id))(x)
+            self.dw_conv = L.DepthwiseConvolution2D(
+                _ch, 1, 3, pad=1, nobias=True, initialW=he_w)
 
-    # shuffle channels
-    x = layers.Lambda(_channel_shuffle, arguments={'g_num': g_num})(x)
+            self.group_conv2 = L.Convolution2D(
+                in_channels,
+                _ch,
+                ksize=3,
+                pad=1,
+                nobias=True,
+                initialW=he_w,
+                groups=groups)
+            self.bn2 = L.BatchNormalization(_ch)
 
-    # depthwise conv
-    x = layers.DepthwiseConv2D(
-        3,
-        padding='same',
-        use_bias=False, 
-        depthwise_initializer='he_normal',
-        name='conv_dw_{}'.format(block_id))(x)
-    x = layers.BatchNormalization(name='conv_dw_{}_bn'.format(block_id))(x)
+    def _channel_shuffle(self, x):
+        b, ch, h, w = x.shape
+        group_size = ch // self.groups
+        x = F.reshape(x, (b, self.groups, group_size, h, w))
+        x = F.transpose(x, axes=(0, 2, 1, 3, 4))
+        x = F.reshape(x, (b, ch, h, w))
+        return x
 
-    # group conv
-    x = _group_conv(x, g_num, block_id, 'last')
-    x = layers.BatchNormalization(name='shuffle_{}_{}_bn'.format(block_id, 'last'))(x)
+    def forward(self, x):
+        h = self.group_conv1(x)
+        h = self.bn1(h)
+        h = F.relu(h)
 
-    # output
-    x = layers.add([inputs, x], name='shuffle_{}_out_add'.format(block_id))
-    x = layers.ReLU(6., name='shuffle_{}_out_relu'.format(block_id))(x)
+        h = self._channel_shuffle(h)
 
-    return x
+        h = self.dw_conv(h)
 
-
-def _group_conv(x, g_num, block_id, position):
-    channels = x.shape.as_list()[-1]
-    g_size = channels // g_num
-    out_list = []
-    for g in range(g_num):
-        offset = g * g_size
-        group = layers.Lambda(
-            lambda z, ofs=offset: z[:, :, :, ofs:ofs + g_size],
-            name='gconv_{}_{}_{}_slice'.format(block_id, position, g + 1))(x)
-        group = layers.Conv2D(
-            g_size,
-            1,
-            padding='same',
-            use_bias=False,
-            kernel_initializer='he_normal',
-            name='gconv_{}_{}_{}'.format(block_id, position, g + 1))(group)
-        out_list.append(group)
-    out = layers.Concatenate(
-        name='gconv_{}_{}_concat'.format(block_id, position))(out_list)
-    return out
+        h = self.group_conv2(h)
+        h = self.bn2(h)
+        h = F.relu(h + x)
+        return h
 
 
-def _channel_shuffle(x, g_num):
-    height, width, channels = x.shape.as_list()[1:]
-    g_size = channels // g_num
-    x = K.reshape(x, (-1, height, width, g_num, g_size))  # divide channels
-    x = K.permute_dimensions(x, (0, 1, 2, 4, 3))          # transpose them
-    x = K.reshape(x, (-1, height, width, channels))       # flatten
-    return x
+class _OutConv(chainer.Chain):
+
+    def __init__(self):
+        super().__init__()
+        he_w = chainer.initializers.HeNormal()
+        with self.init_scope():
+            self.conv_out = L.Convolution2D(
+                _ch,
+                MOVE_DIRECTION_LABEL_NUM,
+                ksize=3,
+                pad=1,
+                nobias=True,
+                initialW=he_w)
+
+    def forward(self, x):
+        x = self.conv_out(x)
+        x = F.reshape(x, (-1, _classes))
+        x = F.relu(x)
+        return x
