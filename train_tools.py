@@ -3,30 +3,46 @@ import os
 import pickle
 import re
 
-from keras.utils import to_categorical
-
 import numpy as np
 
 import pydlshogi.common as cmn
 import pydlshogi.features as fts
 from pydlshogi.read_kifu import read_kifu
 
-num_classes = 9 * 9 * cmn.MOVE_DIRECTION_LABEL_NUM
+from tqdm import tqdm
+
+num_classes = np.int32(9 * 9 * cmn.MOVE_DIRECTION_LABEL_NUM)
 
 
-def create_mini_batch(positions, batch_head, batch_size):
-    mini_batch_data = np.empty((batch_size, 9, 9, 104), dtype=np.float)
-    mini_batch_move = np.empty((batch_size), dtype=np.int)
-    mini_batch_win = np.empty((batch_size), dtype=np.int)
-    for b in range(batch_size):
-        features, move, win = fts.make_features(positions[batch_head + b])
-        features = np.array(features).transpose((0, 2, 3, 1))
-        mini_batch_data[b] = features
-        mini_batch_move[b] = move
-        mini_batch_win[b] = win
-    mini_batch_move = to_categorical(mini_batch_move, num_classes=num_classes)
+class PositionDataset:
 
-    return (mini_batch_data, mini_batch_move, mini_batch_win.reshape((-1, 1)))
+    def __init__(self, positions):
+        self._positions = positions
+        self._length = len(positions)
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            start = index.start or 0
+            stop = index.stop
+            batch_length = stop - start
+            feature = np.empty((batch_length, 104, 9, 9), dtype=np.float32)
+            move = np.empty((batch_length), dtype=np.int32)
+            win = np.empty((batch_length), dtype=np.int32)
+            for i in range(batch_length):
+                f, m, w = fts.make_features(self._positions[start + i])
+                feature[i] = f
+                move[i] = m
+                win[i] = w
+        else:
+            feature, move, win = fts.make_features(self._positions[index])
+            feature = np.array(feature, dtype=np.float32)
+            move = np.int32(move)
+            win = np.int32(win)
+            
+        return (feature, move)
+
+    def __len__(self):
+        return self._length
 
 
 def load_kifu_data(args):
