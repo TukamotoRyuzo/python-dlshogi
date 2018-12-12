@@ -41,8 +41,8 @@ class MCTSPlayer(BasePlayer):
     def __init__(self):
         super().__init__()
         # モデルファイルのパス
-        self.p_net_model = r'H:\src\python-dlshogi\model\model_policy_value_resnet'
-        self.v_net_model = r'H:\src\python-dlshogi\model\model_policy_value_resnet'
+        self.p_net_model = r'C:\shogi\\python-dlshogi\model\model_policy_value_resnet'
+        self.v_net_model = r'C:\shogi\\python-dlshogi\model\model_policy_value_resnet'
         self.p_net = None
         self.v_net = None
 

@@ -53,7 +53,7 @@ class ParallelMCTSPlayer(BasePlayer):
     def __init__(self):
         super().__init__()
         # モデルファイルのパス
-        self.modelfile = r'H:\src\python-dlshogi\model\model_policy_value_resnet'
+        self.modelfile = r'C:\shogi\python-dlshogi\model\model_policy_value_resnet'
         self.model = None # モデル
 
         # ノードの情報
@@ -269,12 +269,12 @@ class ParallelMCTSPlayer(BasePlayer):
             self.current_hash_index_queue.clear()
             self.lock_expand.release()
 
-            x = Variable(cuda.to_gpu(np.array(eval_features, dtype=np.float32)))
+            x = Variable(np.array(eval_features, dtype=np.float32))
             with chainer.no_backprop_mode():
                 y1, y2 = self.model(x)
 
-                logits_batch = cuda.to_cpu(y1.data)
-                values_batch = cuda.to_cpu(F.sigmoid(y2).data)
+                logits_batch = y1.data
+                values_batch = F.sigmoid(y2).data
 
             for index, logits, value in zip(eval_hash_index_queue, logits_batch, values_batch):
                 self.lock_node[index].acquire()
@@ -321,11 +321,19 @@ class ParallelMCTSPlayer(BasePlayer):
         # モデルをロード
         if self.model is None:
             self.model = PolicyValueResnet()
-            self.model.to_gpu()
         serializers.load_npz(self.modelfile, self.model)
         # ハッシュを初期化
         self.node_hash.initialize()
         print('readyok')
+
+        # ネットワークの構造を出力
+        features = np.array(make_input_features_from_board(self.board))
+        x = Variable(np.array(features, dtype=np.float32))
+        with chainer.no_backprop_mode():
+            y1, y2 = self.model(x)
+            g = c.build_computational_graph([y1, y2])
+            with open('graph.dot', 'w') as o:
+                o.write(g.dump())
 
     def go(self):
         if self.board.is_game_over():
