@@ -1,44 +1,72 @@
-﻿#from keras import layers
-#from keras.models import Model
+﻿from keras import layers
+from keras.models import Model
 from chainer import Chain
 import chainer.functions as F
 import chainer.links as L
 from pydlshogi.common import MOVE_DIRECTION_LABEL_NUM
-#from policy_bn import _conv_block
 
 ch = 192
 fcl = 256
 
-# def _resnet_block(x, block_id)
-#     y = layers.Conv2D(
-#         ch,
-#         3,
-#         padding='same',
-#         kernel_initializer='he_normal',
-#         name='conv_{}'.format(block_id))(x)
-#     y = layers.BatchNormalization(name='conv_{}_bn'.format(block_id))(x)
-#     y = layers.ReLU(name='conv_{}_relu'.format(block_id))(x)
-#     y = layers.Conv2D(
-#         ch,
-#         3,
-#         padding='same',
-#         kernel_initializer='he_normal',
-#         name='conv_{}'.format(block_id))(x)
-#     y = layers.BatchNormalization(name='conv_{}_bn'.format(block_id))(x)
-#     y = layers.ReLU(name='conv_{}_relu'.format(block_id))(x + y)
+def conv2D(x):
+    return layers.Conv2D(
+        ch,
+        3,
+        padding='same',
+        kernel_initializer='he_normal',
+        name='conv')(x)
+
+# resnet一つを表すブロック
+# x: ------------------------------->ReLU
+# y: Conv->Batch->ReLU->Conv->Batch->ReLU
+def _resnet_block(x, block_id)
+    y = conv2D(x)
+    y = layers.BatchNormalization(name='conv_{}_bn'.format(block_id))(x)
+    y = layers.ReLU(name='conv_{}_relu'.format(block_id))(x)
+    y = conv2D(x)
+    y = layers.BatchNormalization(name='conv_{}_bn'.format(block_id))(x)
+    y = layers.ReLU(name='conv_{}_relu'.format(block_id))(x + y) # こんなことできるのか？
     
-#     return y
+    return y
 
-# class MyPolicyValueResnet():
-#     # input
-#     board_image = layers.Input(shape=(9, 9, 104))
+class MyPolicyValueResnet():
+    # input
+    board_image = layers.Input(shape=(9, 9, 104))
 
-#     # convolution
-#     x = _conv_block(board_image, 1)
-#     x = _conv_block(x, 2)
-#     x = _conv_block(x, 3)
-#     x = _conv_block(x, 4)
+    # 共通。ResnetのResnetたるところ
+    x = conv2D(board_image)
+    for i in range(1, blocks):
+        x = _resnet_block(x, i)
+    common_out = x
 
+    # policy network
+    x = layers.Conv2D(
+        MOVE_DIRECTION_LABEL_NUM,
+        1,
+        padding='same',
+        name='policy_conv_out')(common_out)
+    x = layers.Reshape((num_classes,), name='policy_reshape')(x)
+    policy_out = layers.Activation('softmax', name='policy_out')(x)
+
+    # value network
+    x = layers.Conv2D(
+        MOVE_DIRECTION_LABEL_NUM,
+        1,
+        padding='same',
+        activation='relu',
+        kernel_initializer='he_normal',
+        name='value_conv_out')(common_out)
+    x = layers.BatchNormalization(name='conv_{}_bn'.format(block_id))(x)
+    x = layers.Reshape((num_classes,), name='value_reshape')(x)
+    x = layers.Dropout(0.5)(x)
+    x = layers.Dense(fcl, activation='relu', name='value_dense_1')(x)
+    x = layers.Dropout(0.5)(x)
+    x = layers.Dense(1, name='value_dense_2')(x)
+    value_out = layers.Activation('sigmoid', name='value_out')(x)
+
+    policy_value_model = Model(inputs=board_image, outputs=[policy_out, value_out])
+
+    return policy_value_model
 
 class Block(Chain):
 
