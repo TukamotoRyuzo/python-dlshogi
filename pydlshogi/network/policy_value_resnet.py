@@ -19,7 +19,7 @@ def _resnet_block(x, block_id):
         3,
         padding='same',
         kernel_initializer='he_normal',
-        name="block_conv{}".format(block_id))(x)
+        name="block_conv1_{}".format(block_id))(x)
     y = layers.BatchNormalization(name='conv_{}_bn'.format(block_id))(x)
     y = layers.ReLU(name='conv_{}_relu'.format(block_id))(x)
     layers.Conv2D(
@@ -27,7 +27,7 @@ def _resnet_block(x, block_id):
         3,
         padding='same',
         kernel_initializer='he_normal',
-        name="block_conv{}".format(block_id))(x)
+        name="block_conv2_{}".format(block_id))(x)
     y = layers.BatchNormalization(name='conv_{}_bn'.format(block_id))(x)
     y = layers.add([x, y])
     y = layers.ReLU(name='conv_{}_relu'.format(block_id))(y)
