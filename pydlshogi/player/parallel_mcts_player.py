@@ -3,7 +3,7 @@ import chainer
 from chainer import serializers
 from chainer import cuda, Variable
 import chainer.functions as F
-
+import chainer.computational_graph as c
 import shogi
 
 from pydlshogi.common import *
@@ -53,7 +53,7 @@ class ParallelMCTSPlayer(BasePlayer):
     def __init__(self):
         super().__init__()
         # モデルファイルのパス
-        self.modelfile = r'C:\shogi\python-dlshogi\model\model_policy_value_resnet'
+        self.modelfile = r'C:\Users\NPC05041\python-dlshogi\model\model_policy_value_resnet'
         self.model = None # モデル
 
         # ノードの情報
@@ -320,21 +320,14 @@ class ParallelMCTSPlayer(BasePlayer):
     def isready(self):
         # モデルをロード
         if self.model is None:
-            self.model = PolicyValueResnet()
-        serializers.load_npz(self.modelfile, self.model)
+            self.model = MyPolicyValueResnet(5)
+
+        self.model.summary()
+
         # ハッシュを初期化
         self.node_hash.initialize()
         print('readyok')
-
-        # ネットワークの構造を出力
-        features = np.array(make_input_features_from_board(self.board))
-        x = Variable(np.array(features, dtype=np.float32))
-        with chainer.no_backprop_mode():
-            y1, y2 = self.model(x)
-            g = c.build_computational_graph([y1, y2])
-            with open('graph.dot', 'w') as o:
-                o.write(g.dump())
-
+        
     def go(self):
         if self.board.is_game_over():
             print('bestmove resign')

@@ -7,35 +7,35 @@ from pydlshogi.common import MOVE_DIRECTION_LABEL_NUM
 
 ch = 192
 fcl = 256
+num_classes = MOVE_DIRECTION_LABEL_NUM * 9 * 9
 
-def conv2D(x):
+def _conv2D(x):
     return layers.Conv2D(
         ch,
         3,
         padding='same',
-        kernel_initializer='he_normal',
-        name='conv')(x)
+        kernel_initializer='he_normal')(x)
 
 # resnet一つを表すブロック
 # x: ------------------------------->ReLU
 # y: Conv->Batch->ReLU->Conv->Batch->ReLU
-def _resnet_block(x, block_id)
-    y = conv2D(x)
+def _resnet_block(x, block_id):
+    y = _conv2D(x)
     y = layers.BatchNormalization(name='conv_{}_bn'.format(block_id))(x)
     y = layers.ReLU(name='conv_{}_relu'.format(block_id))(x)
-    y = conv2D(x)
+    y = _conv2D(x)
     y = layers.BatchNormalization(name='conv_{}_bn'.format(block_id))(x)
-    y = layers.ReLU(name='conv_{}_relu'.format(block_id))(x + y) # こんなことできるのか？
-    
+    y = layers.add([x, y])
+    y = layers.ReLU(name='conv_{}_relu'.format(block_id))(y) 
     return y
 
-class MyPolicyValueResnet():
+def MyPolicyValueResnet(blocks):
     # input
     board_image = layers.Input(shape=(9, 9, 104))
 
     # 共通。ResnetのResnetたるところ
-    x = conv2D(board_image)
-    for i in range(1, blocks):
+    x = _conv2D(board_image)
+    for i in range(blocks):
         x = _resnet_block(x, i)
     common_out = x
 
@@ -56,7 +56,7 @@ class MyPolicyValueResnet():
         activation='relu',
         kernel_initializer='he_normal',
         name='value_conv_out')(common_out)
-    x = layers.BatchNormalization(name='conv_{}_bn'.format(block_id))(x)
+    x = layers.BatchNormalization(name='conv')(x)
     x = layers.Reshape((num_classes,), name='value_reshape')(x)
     x = layers.Dropout(0.5)(x)
     x = layers.Dense(fcl, activation='relu', name='value_dense_1')(x)
