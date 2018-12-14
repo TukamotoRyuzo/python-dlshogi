@@ -4,7 +4,7 @@ import logging
 import chainer
 import chainer.functions as F
 import chainer.links as L
-from chainer import iterators, training
+from chainer import iterators, training, serializers
 from chainer.training import extensions
 
 from pydlshogi.network.policy_bn import PolicyNetwork
@@ -42,7 +42,6 @@ test_iter = iterators.MultithreadIterator(
 # model
 p_net = PolicyNetwork()
 model = L.Classifier(p_net, lossfun=F.softmax_cross_entropy, accfun=F.accuracy)
-print(sum(p.data.size for p in model.params()))
 
 # optimizer
 opt = chainer.optimizers.SGD(lr=args.lr).setup(model)
@@ -57,14 +56,6 @@ trainer.extend(extensions.dump_graph('main/loss'))
 trainer.extend(extensions.LogReport(log_name=args.log))
 
 if extensions.PlotReport.available():
-    # trainer.extend(
-    #     extensions.PlotReport(
-    #         ['main/loss', 'validation/main/loss'], 'epoch', file_name='loss.png'))
-    # trainer.extend(
-    #     extensions.PlotReport(
-    #         ['main/accuracy', 'validation/main/accuracy'],
-    #         'epoch',
-    #         file_name='accuracy.png'))
     trainer.extend(
         extensions.PrintReport([
             'epoch', 'main/loss', 'validation/main/loss', 'main/accuracy',
@@ -74,3 +65,5 @@ if extensions.PlotReport.available():
 
 # train
 trainer.run()
+
+serializers.save_npz('./model/model_policy_bn_chainer.model', p_net)
