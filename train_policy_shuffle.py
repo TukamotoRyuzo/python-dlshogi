@@ -4,7 +4,7 @@ import logging
 import chainer
 import chainer.functions as F
 import chainer.links as L
-from chainer import iterators, training
+from chainer import iterators, training, serializers
 from chainer.training import extensions
 
 from pydlshogi.network.shufflenet_policy import ShufflePolicy
@@ -31,7 +31,8 @@ logging.basicConfig(
 # data set
 logging.info("prepare data set")
 positions_train, positions_test = load_kifu_data(args)
-train = PositionDataset(positions_train)
+# train = PositionDataset(positions_train)
+train = PositionDataset(positions_test)
 test = PositionDataset(positions_test)
 
 # iterator
@@ -57,14 +58,6 @@ trainer.extend(extensions.dump_graph('main/loss'))
 trainer.extend(extensions.LogReport(log_name=args.log))
 
 if extensions.PlotReport.available():
-    # trainer.extend(
-    #     extensions.PlotReport(
-    #         ['main/loss', 'validation/main/loss'], 'epoch', file_name='loss.png'))
-    # trainer.extend(
-    #     extensions.PlotReport(
-    #         ['main/accuracy', 'validation/main/accuracy'],
-    #         'epoch',
-    #         file_name='accuracy.png'))
     trainer.extend(
         extensions.PrintReport([
             'epoch', 'main/loss', 'validation/main/loss', 'main/accuracy',
@@ -74,3 +67,5 @@ if extensions.PlotReport.available():
 
 # train
 trainer.run()
+
+serializers.save_npz('./model/model_policy_shuffle_chainer.model', p_net)
